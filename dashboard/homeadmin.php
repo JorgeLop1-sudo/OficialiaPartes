@@ -6,8 +6,8 @@
     <title>SIS-MPV - Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="..\css\stylehome.css">
-    
+    <link rel="stylesheet" href="..\..\css\dashboard\styledash.css">
+
 </head>
 <body>
    
@@ -19,37 +19,37 @@
         
         <ul class="nav flex-column">
             <li class="nav-item">
-                <a class="nav-link active" href="#">
+                <a class="nav-link active" href="homeadmin.php">
                     <i class="fas fa-home"></i>
                     <span>Inicio</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="areas.php">
                     <i class="fas fa-layer-group"></i>
                     <span>Áreas</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="users.php">
                     <i class="fas fa-users"></i>
                     <span>Usuarios</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="expedientes.php">
                     <i class="fas fa-folder"></i>
                     <span>Expedientes</span>
                 </a>
             </li>
             <li class="nav-item mt-4">
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="config.php">
                     <i class="fas fa-cog"></i>
                     <span>Configuración</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="../../inicio/index.php">
                     <i class="fas fa-sign-out-alt"></i>
                     <span>Cerrar Sesión</span>
                 </a>
