@@ -2,9 +2,9 @@
 session_start();
 
 // Headers para prevenir caching
-header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1
-header("Pragma: no-cache"); // HTTP 1.0
-header("Expires: 0"); // Proxies
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
 
 // Verificar si el usuario está logueado y es administrador
 if (!isset($_SESSION['usuario']) || $_SESSION['tipo_usuario'] !== 'admin') {
@@ -23,6 +23,15 @@ if (!$conn) {
     die("No hay conexión: " . mysqli_connect_error());
 }
 
+// Obtener todas las áreas disponibles desde la base de datos
+$areas_disponibles = [];
+$query_areas = mysqli_query($conn, "SELECT id, nombre FROM areas WHERE activo = 1 ORDER BY nombre ASC");
+if ($query_areas) {
+    while ($row = mysqli_fetch_assoc($query_areas)) {
+        $areas_disponibles[] = $row;
+    }
+}
+
 // Procesar formulario de nuevo usuario
 $mensaje = "";
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -31,18 +40,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = mysqli_real_escape_string($conn, $_POST['password']);
         $nombre = mysqli_real_escape_string($conn, $_POST['nombre']);
         $tipo_usuario = mysqli_real_escape_string($conn, $_POST['tipo_usuario']);
-        $area = mysqli_real_escape_string($conn, $_POST['area']);
+        $area_id = mysqli_real_escape_string($conn, $_POST['area']);
         $email = mysqli_real_escape_string($conn, $_POST['email']);
+        
+        // Obtener el nombre del área basado en el ID seleccionado
+        $area_nombre = "";
+        $query_area_nombre = mysqli_query($conn, "SELECT nombre FROM areas WHERE id = '$area_id'");
+        if ($query_area_nombre && mysqli_num_rows($query_area_nombre) > 0) {
+            $area_data = mysqli_fetch_assoc($query_area_nombre);
+            $area_nombre = $area_data['nombre'];
+        }
         
         // Verificar si el usuario ya existe
         $check_query = mysqli_query($conn, "SELECT * FROM login WHERE usuario = '$usuario'");
         if (mysqli_num_rows($check_query) > 0) {
             $mensaje = "Error: El usuario ya existe";
+        } else if (empty($area_nombre)) {
+            $mensaje = "Error: El área seleccionada no es válida";
         } else {
             // Insertar nuevo usuario
             $password_hashed = password_hash($password, PASSWORD_DEFAULT);
             $insert_query = "INSERT INTO login (usuario, password, nombre, tipo_usuario, area, email) 
-                            VALUES ('$usuario', '$password_hashed', '$nombre', '$tipo_usuario', '$area', '$email')";
+                            VALUES ('$usuario', '$password_hashed', '$nombre', '$tipo_usuario', '$area_nombre', '$email')";
             
             if (mysqli_query($conn, $insert_query)) {
                 $mensaje = "Usuario creado exitosamente";
@@ -60,8 +79,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $usuario = mysqli_real_escape_string($conn, $_POST['usuario']);
         $nombre = mysqli_real_escape_string($conn, $_POST['nombre']);
         $tipo_usuario = mysqli_real_escape_string($conn, $_POST['tipo_usuario']);
-        $area = mysqli_real_escape_string($conn, $_POST['area']);
+        $area_id = mysqli_real_escape_string($conn, $_POST['area']);
         $email = mysqli_real_escape_string($conn, $_POST['email']);
+        
+        // Obtener el nombre del área basado en el ID seleccionado
+        $area_nombre = "";
+        $query_area_nombre = mysqli_query($conn, "SELECT nombre FROM areas WHERE id = '$area_id'");
+        if ($query_area_nombre && mysqli_num_rows($query_area_nombre) > 0) {
+            $area_data = mysqli_fetch_assoc($query_area_nombre);
+            $area_nombre = $area_data['nombre'];
+        }
         
         // Si se proporcionó una nueva contraseña, actualizarla
         $password_update = "";
@@ -72,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         $update_query = "UPDATE login SET usuario = '$usuario', nombre = '$nombre', 
-                         tipo_usuario = '$tipo_usuario', area = '$area', email = '$email'
+                         tipo_usuario = '$tipo_usuario', area = '$area_nombre', email = '$email'
                          $password_update WHERE id = '$id'";
         
         if (mysqli_query($conn, $update_query)) {
@@ -111,6 +138,16 @@ if (isset($_GET['editar'])) {
     $query_editar = mysqli_query($conn, "SELECT * FROM login WHERE id = '$id_editar'");
     if (mysqli_num_rows($query_editar) > 0) {
         $usuario_editar = mysqli_fetch_assoc($query_editar);
+        
+        // Obtener el ID del área actual del usuario para seleccionarlo en el formulario
+        if ($usuario_editar) {
+            $area_actual = $usuario_editar['area'];
+            $query_area_id = mysqli_query($conn, "SELECT id FROM areas WHERE nombre = '$area_actual'");
+            if ($query_area_id && mysqli_num_rows($query_area_id) > 0) {
+                $area_data = mysqli_fetch_assoc($query_area_id);
+                $usuario_editar['area_id'] = $area_data['id'];
+            }
+        }
     }
 }
 
@@ -334,10 +371,9 @@ mysqli_close($conn);
                             <label for="area" class="form-label">Área *</label>
                             <select class="form-select" id="area" name="area" required>
                                 <option value="" selected disabled>Seleccionar área</option>
-                                <option value="MESA DE PARTES">MESA DE PARTES</option>
-                                <option value="GERENCIA">GERENCIA</option>
-                                <option value="RECURSOS HUMANOS">RECURSOS HUMANOS</option>
-                                <option value="CONTABILIDAD">CONTABILIDAD</option>
+                                <?php foreach ($areas_disponibles as $area): ?>
+                                    <option value="<?php echo $area['id']; ?>"><?php echo htmlspecialchars($area['nombre']); ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="mb-3">
@@ -395,10 +431,13 @@ mysqli_close($conn);
                         <div class="mb-3">
                             <label for="area_edit" class="form-label">Área *</label>
                             <select class="form-select" id="area_edit" name="area" required>
-                                <option value="MESA DE PARTES" <?php echo $usuario_editar['area'] == 'MESA DE PARTES' ? 'selected' : ''; ?>>MESA DE PARTES</option>
-                                <option value="GERENCIA" <?php echo $usuario_editar['area'] == 'GERENCIA' ? 'selected' : ''; ?>>GERENCIA</option>
-                                <option value="RECURSOS HUMANOS" <?php echo $usuario_editar['area'] == 'RECURSOS HUMANOS' ? 'selected' : ''; ?>>RECURSOS HUMANOS</option>
-                                <option value="CONTABILIDAD" <?php echo $usuario_editar['area'] == 'CONTABILIDAD' ? 'selected' : ''; ?>>CONTABILIDAD</option>
+                                <option value="" disabled>Seleccionar área</option>
+                                <?php foreach ($areas_disponibles as $area): ?>
+                                    <option value="<?php echo $area['id']; ?>" 
+                                        <?php echo (isset($usuario_editar['area_id']) && $usuario_editar['area_id'] == $area['id']) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($area['nombre']); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="mb-3">
