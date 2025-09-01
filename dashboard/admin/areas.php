@@ -64,13 +64,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Editar área
     if (isset($_POST['editar_area'])) {
         $id = mysqli_real_escape_string($conn, $_POST['id']);
+        $nombre_anterior = mysqli_real_escape_string($conn, $_POST['nombre_anterior']);
         $nombre = mysqli_real_escape_string($conn, $_POST['nombre']);
         $descripcion = mysqli_real_escape_string($conn, $_POST['descripcion']);
         
         $update_query = "UPDATE areas SET nombre = '$nombre', descripcion = '$descripcion' WHERE id = '$id'";
         
         if (mysqli_query($conn, $update_query)) {
-            $mensaje = "Área actualizada exitosamente";
+            // Actualizar todos los usuarios que tenían el área anterior
+            $update_usuarios = "UPDATE login SET area_id = '$id' WHERE area_id IN (SELECT id FROM areas WHERE nombre = '$nombre_anterior')";
+            mysqli_query($conn, $update_usuarios);
+            
+            $mensaje = "Área actualizada exitosamente y usuarios migrados";
             header("Location: areas.php?mensaje=" . urlencode($mensaje));
             exit();
         } else {
@@ -84,7 +89,7 @@ if (isset($_GET['eliminar'])) {
     $id = mysqli_real_escape_string($conn, $_GET['eliminar']);
     
     // Verificar si el área está en uso antes de eliminar
-    $check_use = mysqli_query($conn, "SELECT * FROM login WHERE area = (SELECT nombre FROM areas WHERE id = '$id')");
+    $check_use = mysqli_query($conn, "SELECT * FROM login WHERE area_id = '$id'");
     if (mysqli_num_rows($check_use) > 0) {
         $mensaje = "No se puede eliminar el área porque está asignada a usuarios";
     } else {
@@ -109,11 +114,21 @@ if (isset($_GET['editar'])) {
     }
 }
 
-// Obtener todas las áreas
+// Obtener todas las áreas con información de usuarios (CONSULTA CORREGIDA)
 $areas = [];
-$query = mysqli_query($conn, "SELECT * FROM areas ORDER BY nombre ASC");
-if ($query) {
-    while ($row = mysqli_fetch_assoc($query)) {
+$query = "
+    SELECT a.*, 
+           COUNT(l.id) as total_usuarios,
+           GROUP_CONCAT(CONCAT(l.nombre, ' (', l.usuario, ')') SEPARATOR '| ') as usuarios_lista
+    FROM areas a
+    LEFT JOIN login l ON a.id = l.area_id  -- CORRECCIÓN: Usar area_id en lugar de area
+    GROUP BY a.id
+    ORDER BY a.nombre ASC
+";
+
+$result = mysqli_query($conn, $query);
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
         $areas[] = $row;
     }
 }
@@ -140,6 +155,32 @@ mysqli_close($conn);
         }
         .area-card:hover {
             transform: translateY(-2px);
+        }
+        .user-list {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .user-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .user-item:last-child {
+            border-bottom: none;
+        }
+        .user-count {
+            display: inline-block;
+            background-color: #3498db;
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            text-align: center;
+            line-height: 25px;
+            font-size: 0.8rem;
+            margin-right: 5px;
         }
     </style>
 </head>
@@ -262,6 +303,17 @@ mysqli_close($conn);
                             </div>
                             <div class="user-detail">
                                 <div class="user-detail-icon">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="user-detail-text">
+                                    <strong>Usuarios asignados:</strong> 
+                                    <span class="badge bg-<?php echo $area['total_usuarios'] > 0 ? 'success' : 'secondary'; ?>">
+                                        <?php echo $area['total_usuarios']; ?> usuario(s)
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="user-detail">
+                                <div class="user-detail-icon">
                                     <i class="fas fa-status"></i>
                                 </div>
                                 <div class="user-detail-text">
@@ -271,6 +323,29 @@ mysqli_close($conn);
                                     </span>
                                 </div>
                             </div>
+                            
+                            <!-- Mostrar lista de usuarios si existen -->
+                            <?php if ($area['total_usuarios'] > 0): ?>
+                            <div class="user-detail">
+                                <div class="user-detail-icon">
+                                    <i class="fas fa-user-friends"></i>
+                                </div>
+                                <div class="user-detail-text">
+                                    <strong>Lista de usuarios:</strong>
+                                    <div class="user-list">
+                                        <?php 
+                                        $usuarios = explode('| ', $area['usuarios_lista']);
+                                        foreach ($usuarios as $usuario): 
+                                        ?>
+                                            <div class="user-item">
+                                                <i class="fas fa-user-circle me-2 text-muted"></i>
+                                                <?php echo htmlspecialchars($usuario); ?>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <div class="user-actions">
                             <a href="?editar=<?php echo $area['id']; ?>" class="btn btn-sm btn-primary btn-action">
@@ -328,6 +403,7 @@ mysqli_close($conn);
                 </div>
                 <form method="POST" action="">
                     <input type="hidden" name="id" value="<?php echo $area_editar['id']; ?>">
+                    <input type="hidden" name="nombre_anterior" value="<?php echo htmlspecialchars($area_editar['nombre']); ?>">
                     <div class="modal-body">
                         <div class="mb-3">
                             <label for="nombre_edit" class="form-label">Nombre del Área *</label>

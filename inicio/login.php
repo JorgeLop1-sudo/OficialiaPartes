@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <button type="submit" class="btn btn-login">Ingresar al Sistema</button>
                 
                 <div class="text-center mt-3">
-                    <a href="#" class="text-decoration-none">¿Olvidaste tu contraseña?</a>
+                    <a href="recovery/forgot-password.php" class="text-decoration-none">¿Olvidaste tu contraseña?</a>
                 </div>
             </form>
         </div>

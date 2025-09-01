@@ -43,32 +43,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $area_id = mysqli_real_escape_string($conn, $_POST['area']);
         $email = mysqli_real_escape_string($conn, $_POST['email']);
         
-        // Obtener el nombre del área basado en el ID seleccionado
-        $area_nombre = "";
-        $query_area_nombre = mysqli_query($conn, "SELECT nombre FROM areas WHERE id = '$area_id'");
-        if ($query_area_nombre && mysqli_num_rows($query_area_nombre) > 0) {
-            $area_data = mysqli_fetch_assoc($query_area_nombre);
-            $area_nombre = $area_data['nombre'];
-        }
-        
-        // Verificar si el usuario ya existe
-        $check_query = mysqli_query($conn, "SELECT * FROM login WHERE usuario = '$usuario'");
-        if (mysqli_num_rows($check_query) > 0) {
-            $mensaje = "Error: El usuario ya existe";
-        } else if (empty($area_nombre)) {
+        // Verificar si el área existe
+        $query_area_check = mysqli_query($conn, "SELECT id FROM areas WHERE id = '$area_id'");
+        if (mysqli_num_rows($query_area_check) === 0) {
             $mensaje = "Error: El área seleccionada no es válida";
         } else {
-            // Insertar nuevo usuario
-            $password_hashed = password_hash($password, PASSWORD_DEFAULT);
-            $insert_query = "INSERT INTO login (usuario, password, nombre, tipo_usuario, area, email) 
-                            VALUES ('$usuario', '$password_hashed', '$nombre', '$tipo_usuario', '$area_nombre', '$email')";
-            
-            if (mysqli_query($conn, $insert_query)) {
-                $mensaje = "Usuario creado exitosamente";
-                header("Location: users.php?mensaje=" . urlencode($mensaje));
-                exit();
+            // Verificar si el usuario ya existe
+            $check_query = mysqli_query($conn, "SELECT * FROM login WHERE usuario = '$usuario'");
+            if (mysqli_num_rows($check_query) > 0) {
+                $mensaje = "Error: El usuario ya existe";
             } else {
-                $mensaje = "Error al crear usuario: " . mysqli_error($conn);
+                // Insertar nuevo usuario
+                $password_hashed = password_hash($password, PASSWORD_DEFAULT);
+                $insert_query = "INSERT INTO login (usuario, password, nombre, tipo_usuario, area_id, email) 
+                                VALUES ('$usuario', '$password_hashed', '$nombre', '$tipo_usuario', '$area_id', '$email')";
+                
+                if (mysqli_query($conn, $insert_query)) {
+                    $mensaje = "Usuario creado exitosamente";
+                    header("Location: users.php?mensaje=" . urlencode($mensaje));
+                    exit();
+                } else {
+                    $mensaje = "Error al crear usuario: " . mysqli_error($conn);
+                }
             }
         }
     }
@@ -82,14 +78,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $area_id = mysqli_real_escape_string($conn, $_POST['area']);
         $email = mysqli_real_escape_string($conn, $_POST['email']);
         
-        // Obtener el nombre del área basado en el ID seleccionado
-        $area_nombre = "";
-        $query_area_nombre = mysqli_query($conn, "SELECT nombre FROM areas WHERE id = '$area_id'");
-        if ($query_area_nombre && mysqli_num_rows($query_area_nombre) > 0) {
-            $area_data = mysqli_fetch_assoc($query_area_nombre);
-            $area_nombre = $area_data['nombre'];
-        }
-        
         // Si se proporcionó una nueva contraseña, actualizarla
         $password_update = "";
         if (!empty($_POST['password'])) {
@@ -99,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         $update_query = "UPDATE login SET usuario = '$usuario', nombre = '$nombre', 
-                         tipo_usuario = '$tipo_usuario', area = '$area_nombre', email = '$email'
+                         tipo_usuario = '$tipo_usuario', area_id = '$area_id', email = '$email'
                          $password_update WHERE id = '$id'";
         
         if (mysqli_query($conn, $update_query)) {
@@ -138,24 +126,20 @@ if (isset($_GET['editar'])) {
     $query_editar = mysqli_query($conn, "SELECT * FROM login WHERE id = '$id_editar'");
     if (mysqli_num_rows($query_editar) > 0) {
         $usuario_editar = mysqli_fetch_assoc($query_editar);
-        
-        // Obtener el ID del área actual del usuario para seleccionarlo en el formulario
-        if ($usuario_editar) {
-            $area_actual = $usuario_editar['area'];
-            $query_area_id = mysqli_query($conn, "SELECT id FROM areas WHERE nombre = '$area_actual'");
-            if ($query_area_id && mysqli_num_rows($query_area_id) > 0) {
-                $area_data = mysqli_fetch_assoc($query_area_id);
-                $usuario_editar['area_id'] = $area_data['id'];
-            }
-        }
     }
 }
 
-// Obtener todos los usuarios de la base de datos
+// Obtener todos los usuarios con información de área
 $usuarios = [];
-$query = mysqli_query($conn, "SELECT * FROM login ORDER BY id DESC");
-if ($query) {
-    while ($row = mysqli_fetch_assoc($query)) {
+$query = "
+    SELECT l.*, a.nombre as area_nombre 
+    FROM login l 
+    LEFT JOIN areas a ON l.area_id = a.id 
+    ORDER BY l.id DESC
+";
+$result = mysqli_query($conn, $query);
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
         $usuarios[] = $row;
     }
 }
@@ -303,7 +287,14 @@ mysqli_close($conn);
                                     <i class="fas fa-building"></i>
                                 </div>
                                 <div class="user-detail-text">
-                                    <strong>Área:</strong> <?php echo htmlspecialchars($user['area']); ?>
+                                    <strong>Área:</strong> 
+                                    <?php 
+                                    if (!empty($user['area_nombre'])) {
+                                        echo htmlspecialchars($user['area_nombre']);
+                                    } else {
+                                        echo '<span class="text-muted">Sin área asignada</span>';
+                                    }
+                                    ?>
                                 </div>
                             </div>
                             <?php if (!empty($user['email'])): ?>

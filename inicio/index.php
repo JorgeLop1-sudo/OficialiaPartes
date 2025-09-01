@@ -23,8 +23,8 @@
                     <i class="fas fa-search"></i>
                     <span>Buscar Oficio</span>
                 </a>
-            </div><div class="quick-actions">
-                <a href="login.php" class="action-btn">
+            </div><div class="quick-actions2">
+                <a href="login.php" class="action-btn2">
                     <i class="fas fa-user"></i>
                     <span>Iniciar Sesion</span>
                 </a>
