@@ -7,7 +7,63 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="..\css\inicio\styleoficios.css">
-
+    <style>
+        .security-code {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        #codigoSeguridad {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 5px;
+            color: #0d6efd;
+            background-color: #fff;
+            padding: 10px 15px;
+            border-radius: 5px;
+            border: 1px dashed #ccc;
+        }
+        .btn-search {
+            background-color: #0d6efd;
+            color: white;
+            padding: 10px;
+            font-weight: bold;
+        }
+        .modal-content {
+            border-radius: 10px;
+        }
+        .modal-header {
+            background-color: #0d6efd;
+            color: white;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+        }
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+        .status-pendiente {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-tramite {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+        .status-completado {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-denegado {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
 </head>
 <body>
     <div class="header">
@@ -25,10 +81,10 @@
         <div class="content">
             <h2 class="page-title"><i class="fas fa-search me-2"></i>Buscar Trámite</h2>
             
-            <form id="searchForm" action="procesar_busqueda.php" method="POST">
+            <form id="searchForm" method="POST">
                 <div class="mb-3">
                     <label for="expediente" class="form-label">Ingresar N° de Expediente</label>
-                    <input type="text" class="form-control" id="expediente" name="expediente" placeholder="Ejemplo: 2023-00123-MP" required>
+                    <input type="text" class="form-control" id="expediente" name="expediente" placeholder="Ejemplo: 7878787" required>
                 </div>
                 
                 <div class="mb-3">
@@ -57,6 +113,25 @@
         </div>
     </div>
 
+    <!-- Modal para mostrar resultados -->
+    <div class="modal fade" id="resultadoModal" tabindex="-1" aria-labelledby="resultadoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="resultadoModalLabel">Información del Oficio</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <!-- Aquí se cargará la información del oficio -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Función para generar un código de seguridad aleatorio
         function generarCodigo() {
@@ -73,33 +148,135 @@
             generarCodigo();
         };
         
-        // Validación del formulario
+        // Validación del formulario y envío mediante AJAX
         document.getElementById('searchForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            
             const expediente = document.getElementById('expediente').value;
             const codigo = document.getElementById('codigo').value;
             const codigoSeguridad = document.getElementById('codigoSeguridad').textContent;
             
             if (!expediente) {
                 alert('Por favor, ingrese el número de expediente');
-                event.preventDefault();
                 return;
             }
             
             if (codigo !== codigoSeguridad) {
                 alert('El código de seguridad no coincide. Por favor, inténtelo de nuevo.');
-                event.preventDefault();
                 generarCodigo();
                 return;
             }
             
-            // Aquí normalmente se enviaría el formulario al servidor
-            alert('Búsqueda realizada con éxito. Redirigiendo a resultados...');
-            // event.preventDefault(); // Descomentar para desarrollo
+            // Realizar la búsqueda mediante AJAX
+            buscarOficio(expediente);
         });
+        
+        function buscarOficio(numeroDocumento) {
+            // Crear una solicitud AJAX
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'buscar_oficio.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            
+            xhr.onload = function() {
+                if (this.status === 200) {
+                    try {
+                        const response = JSON.parse(this.responseText);
+                        
+                        if (response.success) {
+                            // Mostrar los datos en el modal
+                            mostrarResultadoEnModal(response.data);
+                        } else {
+                            alert(response.message || 'No se encontró el oficio solicitado.');
+                        }
+                    } catch (e) {
+                        console.error('Error parsing JSON:', e);
+                        alert('Error al procesar la respuesta del servidor.');
+                    }
+                } else {
+                    alert('Error en la conexión con el servidor.');
+                }
+            };
+            
+            xhr.onerror = function() {
+                alert('Error en la conexión con el servidor.');
+            };
+            
+            // Enviar la solicitud
+            xhr.send('numero_documento=' + encodeURIComponent(numeroDocumento));
+        }
+        
+        function mostrarResultadoEnModal(oficio) {
+            // Formatear la fecha
+            const fechaRegistro = new Date(oficio.fecha_registro).toLocaleString('es-ES');
+            const fechaDerivacion = oficio.fecha_derivacion ? new Date(oficio.fecha_derivacion).toLocaleString('es-ES') : 'No derivado';
+            const fechaRespuesta = oficio.fecha_respuesta ? new Date(oficio.fecha_respuesta).toLocaleString('es-ES') : 'Sin respuesta';
+            
+            // Determinar la clase CSS según el estado
+            let estadoClass = '';
+            switch(oficio.estado) {
+                case 'pendiente':
+                    estadoClass = 'status-pendiente';
+                    break;
+                case 'tramite':
+                    estadoClass = 'status-tramite';
+                    break;
+                case 'completado':
+                    estadoClass = 'status-completado';
+                    break;
+                case 'denegado':
+                    estadoClass = 'status-denegado';
+                    break;
+            }
+            
+            // Construir el HTML para el modal
+            const modalContent = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Información del Remitente</h6>
+                        <p><strong>Remitente:</strong> ${oficio.remitente}</p>
+                        <p><strong>Tipo de Persona:</strong> ${oficio.tipo_persona}</p>
+                        <p><strong>N° Documento:</strong> ${oficio.numero_documento}</p>
+                        <p><strong>Correo:</strong> ${oficio.correo}</p>
+                        <p><strong>Teléfono:</strong> ${oficio.telefono}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Detalles del Oficio</h6>
+                        <p><strong>Folios:</strong> ${oficio.folios}</p>
+                        <p><strong>Asunto:</strong> ${oficio.asunto}</p>
+                        <p><strong>Estado:</strong> <span class="status-badge ${estadoClass}">${oficio.estado}</span></p>
+                        <p><strong>Fecha de Registro:</strong> ${fechaRegistro}</p>
+                    </div>
+                </div>
+                
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h6>Seguimiento</h6>
+                        <p><strong>Área Derivada:</strong> ${oficio.area_derivada || 'No derivado'}</p>
+                        <p><strong>Usuario Derivado:</strong> ${oficio.usuario_derivado || 'No derivado'}</p>
+                        <p><strong>Fecha de Derivación:</strong> ${fechaDerivacion}</p>
+                        <p><strong>Respuesta:</strong> ${oficio.respuesta || 'Sin respuesta'}</p>
+                        <p><strong>Fecha de Respuesta:</strong> ${fechaRespuesta}</p>
+                    </div>
+                </div>
+                
+                ${oficio.archivo_nombre ? `
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h6>Archivo Adjunto</h6>
+                        <p><strong>Nombre:</strong> ${oficio.archivo_nombre}</p>
+                        <a href="${oficio.archivo_ruta}" class="btn btn-sm btn-outline-primary" target="_blank">Descargar</a>
+                    </div>
+                </div>
+                ` : ''}
+            `;
+            
+            // Insertar el contenido en el modal
+            document.getElementById('modalBody').innerHTML = modalContent;
+            
+            // Mostrar el modal
+            const modal = new bootstrap.Modal(document.getElementById('resultadoModal'));
+            modal.show();
+        }
     </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-
-    
 </body>
 </html>
