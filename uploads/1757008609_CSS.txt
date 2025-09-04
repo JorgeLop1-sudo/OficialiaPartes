@@ -1,0 +1,17 @@
+CSS
+ Dashboard
+  dash
+ Inicio
+  buscar
+  registrar
+  index
+Dashboard
+ home
+ áreas
+ users
+ expedientes
+Inicio
+ buscar
+ index
+ login
+ registrar

@@ -1,0 +1,101 @@
+1.Ingresa tu número telefónico
+No utilizar guiones ni espacios. Ejemplo: 4621234567
+4622457138
+2.Indica tu fecha de nacimiento
+4/1/2003
+
+3.Ingresa tu dirección actual
+Redacta la dirección oficial, como aparece en el comprobante de domicilio. 
+Ejemplo: 
+(Calle|Av.|Blvd.|Carretera, Número, C.P., Municipio, Estado)
+Av. Escuela Médico Militar 129-Local 4, Las Reynas, C.P. 3660, Irapuato, Gto. 
+Carretera Irapuato-Silao km. 12.5, El Copal, C.P. 36821, Irapuato, Gto. 
+Calle Pomona 132, La Florida, C.P. 36554, Irapuato, Gto.
+4.¿En cuál semestre te encuentras actualmente?
+9
+5.¿Qué porcentaje de avance en los créditos llevas en este momento?
+Consulta el kardex.
+Ejemplo: 98%, 96.5%
+92%
+6.Selecciona tu programa educativo
+Sistemas Computacionales
+7.¿Tu proyecto es en equipo?
+No
+8.¿Quién propuso el proyecto?
+La empresa me propuso el proyecto
+9.¿Cuándo iniciaste la búsqueda de un proyecto de residencias?
+21/8/2025
+
+10.¿Estás contemplando titularte por medio de las Residencias Profesionales?
+Esta pregunta no es una solicitud de titulación. 
+Sí
+11.¿Recibirás un apoyo económico en la organización?
+No
+12.¿Cuál es el nombre del proyecto?
+Sistema de Oficialia de Partes
+13.Selecciona la fecha de inicio del proyecto
+22/8/2025
+
+14.Selecciona la fecha estimada para el término del proyecto
+4/12/2025
+
+15.Escribe el objetivo del proyecto
+Respeta las reglas de gramática y ortografía. 
+Centralizar la recepción, registro, y distribución de documentos y correspondencia que ingresan a la institución, para asegurar que estos lleguen de manera ordenada y oportuna a sus destinatarios o áreas competentes. Su función es actuar como un punto de control para la gestión documental, facilitando el seguimiento de los trámites y garantizando la transparencia y eficiencia en los procesos administrativos.
+16.Escribe la delimitación de actividades
+Respeta las reglas de gramática y ortografía. 
+Analisis de la problematica. Configuracion de servidor para base de datos. Desarrollo de sistema. Pruebas de seguridad. Puesta en marcha.
+17.Escribe la justificación del proyecto
+Respeta las reglas de gramática y ortografía. 
+Sirve como único punto de entrada para la documentación, permitiendo un control y seguimiento unificado de todos los trámites que ingresan a la institución. Genera evidencia del momento exacto en que un documento fue recibido, crucial para el cumplimiento de plazos. 
+18.¿Cuál es el nombre de la organización donde estarás como residente?
+Redacta el nombre oficial de la empresa, tal y como está en su RFC. 
+Centro de Comunicaciones del Municipio de Irapuato(C4)
+19.Selecciona el giro de la empresa
+Gobierno
+20.¿Cuál es la dirección de la organización?
+Redacta la dirección oficial, como aparece en el comprobante de domicilio. 
+Ejemplo: 
+(Calle|Av.|Blvd.|Carretera, Número, C.P., Municipio, Estado)
+Av. Escuela Médico Militar 129-Local 4, Las Reynas, C.P. 3660, Irapuato, Gto. 
+Carretera Irapuato-Silao km. 12.5, El Copal, C.P. 36821, Irapuato, Gto. 
+Irapuato-Salamanca 5625, Rancho Grande, C.P. 36594, Irapuato, Guanajuato.
+21.Ingresa las coordenadas de la organización. 
+La información la obtienes de Google Maps, y deberá estar en el siguiente formato: 
+
+20.678237279519333, -101.38139890318307
+20.658796564350574, -101.30580508919908
+22.¿Cuál es el teléfono de la organización?
+Si hay una extensión, agregarla. 
+
+Ejemplos: 
+
+4626067900
+4625458712 ext. 188
+4626238300
+23.Ingresa el e-mail de quien será tu asesor externo. 
+luis.gonzalez@irapuato.gob.mx
+24.¿Quién será tu asesora o asesor en la organización?
+Si la persona tiene un título profesional, indicarlo. 
+Ejemplos:
+
+Lic. Juan Carlos Hidalgo García
+Ing. Julieta Andrea Arredondo Costa
+Dr. Luis Antonio Avilés Duarte
+M.C. Rosalía Jiménez Arreola
+Lic. Luis César González Muñoz
+25.¿En cuál departamento o área de la organización se va a desarrollar el proyecto?
+Tecnologias de la Informacion
+26.Ingresa el nombre de la persona encargada de Recursos Humanos. 
+Si la persona tiene un título profesional, indicarlo. 
+Ejemplos:
+
+Lic. Juan Carlos Hidalgo García
+Ing. Julieta Andrea Arredondo Costa
+Dr. Luis Antonio Avilés Duarte
+M.C. Rosalía Jiménez Arreola
+Cristina Sarahi Zarate Cuevas
+27.¿Cuál es el correo electrónico de la persona registrada en la pregunta anterior?
+cristina.zarate@irapuato.gob.mx
+28.Por último, ingresa el número telefónico de la persona encargada de Recursos Humanos
+4626238300 ext 314

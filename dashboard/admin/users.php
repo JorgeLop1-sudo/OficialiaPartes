@@ -34,36 +34,60 @@ if ($query_areas) {
 
 // Procesar formulario de nuevo usuario
 $mensaje = "";
+$error = "";
+$form_data = []; // Para mantener los datos del formulario en caso de error
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['crear_usuario'])) {
         $usuario = mysqli_real_escape_string($conn, $_POST['usuario']);
         $password = mysqli_real_escape_string($conn, $_POST['password']);
+        $confirm_password = mysqli_real_escape_string($conn, $_POST['confirm_password']);
         $nombre = mysqli_real_escape_string($conn, $_POST['nombre']);
         $tipo_usuario = mysqli_real_escape_string($conn, $_POST['tipo_usuario']);
         $area_id = mysqli_real_escape_string($conn, $_POST['area']);
         $email = mysqli_real_escape_string($conn, $_POST['email']);
         
-        // Verificar si el área existe
-        $query_area_check = mysqli_query($conn, "SELECT id FROM areas WHERE id = '$area_id'");
-        if (mysqli_num_rows($query_area_check) === 0) {
-            $mensaje = "Error: El área seleccionada no es válida";
+        // Guardar datos del formulario para repoblar en caso de error
+        $form_data = [
+            'usuario' => $usuario,
+            'nombre' => $nombre,
+            'tipo_usuario' => $tipo_usuario,
+            'area' => $area_id,
+            'email' => $email
+        ];
+        
+        // Validar que las contraseñas coincidan
+        if ($password !== $confirm_password) {
+            $error = "Error: Las contraseñas no coinciden";
         } else {
-            // Verificar si el usuario ya existe
-            $check_query = mysqli_query($conn, "SELECT * FROM login WHERE usuario = '$usuario'");
-            if (mysqli_num_rows($check_query) > 0) {
-                $mensaje = "Error: El usuario ya existe";
+            // Verificar si el área existe
+            $query_area_check = mysqli_query($conn, "SELECT id FROM areas WHERE id = '$area_id'");
+            if (mysqli_num_rows($query_area_check) === 0) {
+                $error = "Error: El área seleccionada no es válida";
             } else {
-                // Insertar nuevo usuario
-                $password_hashed = password_hash($password, PASSWORD_DEFAULT);
-                $insert_query = "INSERT INTO login (usuario, password, nombre, tipo_usuario, area_id, email) 
-                                VALUES ('$usuario', '$password_hashed', '$nombre', '$tipo_usuario', '$area_id', '$email')";
-                
-                if (mysqli_query($conn, $insert_query)) {
-                    $mensaje = "Usuario creado exitosamente";
-                    header("Location: users.php?mensaje=" . urlencode($mensaje));
-                    exit();
+                // Verificar si el usuario ya existe
+                $check_query = mysqli_query($conn, "SELECT * FROM login WHERE usuario = '$usuario'");
+                if (mysqli_num_rows($check_query) > 0) {
+                    $error = "Error: El nombre de usuario ya existe";
                 } else {
-                    $mensaje = "Error al crear usuario: " . mysqli_error($conn);
+                    // Verificar si el correo ya existe
+                    $check_query = mysqli_query($conn, "SELECT * FROM login WHERE email = '$email'");
+                    if (mysqli_num_rows($check_query) > 0) {
+                        $error = "Error: El correo electrónico ya está registrado";
+                    } else {
+                        // Insertar nuevo usuario
+                        $password_hashed = password_hash($password, PASSWORD_DEFAULT);
+                        $insert_query = "INSERT INTO login (usuario, password, nombre, tipo_usuario, area_id, email) 
+                                    VALUES ('$usuario', '$password_hashed', '$nombre', '$tipo_usuario', '$area_id', '$email')";
+                    
+                        if (mysqli_query($conn, $insert_query)) {
+                            $mensaje = "Usuario creado exitosamente";
+                            header("Location: users.php?mensaje=" . urlencode($mensaje));
+                            exit();
+                        } else {
+                            $error = "Error al crear usuario: " . mysqli_error($conn);
+                        }
+                    }
                 }
             }
         }
@@ -78,24 +102,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $area_id = mysqli_real_escape_string($conn, $_POST['area']);
         $email = mysqli_real_escape_string($conn, $_POST['email']);
         
-        // Si se proporcionó una nueva contraseña, actualizarla
-        $password_update = "";
-        if (!empty($_POST['password'])) {
-            $password = mysqli_real_escape_string($conn, $_POST['password']);
-            $password_hashed = password_hash($password, PASSWORD_DEFAULT);
-            $password_update = ", password = '$password_hashed'";
-        }
-        
-        $update_query = "UPDATE login SET usuario = '$usuario', nombre = '$nombre', 
-                         tipo_usuario = '$tipo_usuario', area_id = '$area_id', email = '$email'
-                         $password_update WHERE id = '$id'";
-        
-        if (mysqli_query($conn, $update_query)) {
-            $mensaje = "Usuario actualizado exitosamente";
-            header("Location: users.php?mensaje=" . urlencode($mensaje));
-            exit();
+        // Verificar si el usuario ya existe (excluyendo el usuario actual)
+        $check_user_query = mysqli_query($conn, "SELECT * FROM login WHERE usuario = '$usuario' AND id != '$id'");
+        if (mysqli_num_rows($check_user_query) > 0) {
+            $error = "Error: El nombre de usuario ya existe";
         } else {
-            $mensaje = "Error al actualizar usuario: " . mysqli_error($conn);
+            // Verificar si el correo ya existe (excluyendo el usuario actual)
+            $check_email_query = mysqli_query($conn, "SELECT * FROM login WHERE email = '$email' AND id != '$id'");
+            if (mysqli_num_rows($check_email_query) > 0) {
+                $error = "Error: El correo electrónico ya está registrado";
+            } else {
+                // Si se proporcionó una nueva contraseña, actualizarla
+                $password_update = "";
+                if (!empty($_POST['password'])) {
+                    $password = mysqli_real_escape_string($conn, $_POST['password']);
+                    $confirm_password = mysqli_real_escape_string($conn, $_POST['confirm_password']);
+                    
+                    // Validar que las contraseñas coincidan
+                    if ($password !== $confirm_password) {
+                        $error = "Error: Las contraseñas no coinciden";
+                    } else {
+                        $password_hashed = password_hash($password, PASSWORD_DEFAULT);
+                        $password_update = ", password = '$password_hashed'";
+                    }
+                }
+                
+                // Si no hay error de contraseña, proceder con la actualización
+                if (empty($error)) {
+                    $update_query = "UPDATE login SET usuario = '$usuario', nombre = '$nombre', 
+                                 tipo_usuario = '$tipo_usuario', area_id = '$area_id', email = '$email'
+                                 $password_update WHERE id = '$id'";
+                    
+                    if (mysqli_query($conn, $update_query)) {
+                        $mensaje = "Usuario actualizado exitosamente";
+                        header("Location: users.php?mensaje=" . urlencode($mensaje));
+                        exit();
+                    } else {
+                        $error = "Error al actualizar usuario: " . mysqli_error($conn);
+                    }
+                }
+            }
         }
     }
 }
@@ -112,10 +158,10 @@ if (isset($_GET['eliminar'])) {
             header("Location: users.php?mensaje=" . urlencode($mensaje));
             exit();
         } else {
-            $mensaje = "Error al eliminar usuario: " . mysqli_error($conn);
+            $error = "Error al eliminar usuario: " . mysqli_error($conn);
         }
     } else {
-        $mensaje = "No puedes eliminarte a ti mismo";
+        $error = "No puedes eliminarte a ti mismo";
     }
 }
 
@@ -168,6 +214,12 @@ mysqli_close($conn);
         }
         .password-toggle {
             cursor: pointer;
+        }
+        .password-match-error {
+            display: none;
+            color: #dc3545;
+            font-size: 0.875em;
+            margin-top: 0.25rem;
         }
     </style>
 </head>
@@ -223,7 +275,7 @@ mysqli_close($conn);
     <div class="main-content">
         
         <div class="header">
-            <h2 class="mb-0">Dashboard Administrador</h2>
+            <h2 class="mb-0">Gestión de Usuarios</h2>
             <div class="user-info">
                 <div class="user-avatar"><?php echo substr($_SESSION['nombre'], 0, 2); ?></div>
                 <div>
@@ -233,10 +285,18 @@ mysqli_close($conn);
             </div>
         </div>
 
-        <!-- Mostrar mensajes -->
+        <!-- Mostrar mensajes de éxito -->
         <?php if (isset($_GET['mensaje'])): ?>
             <div class="alert alert-info alert-dismissible fade show" role="alert">
                 <?php echo htmlspecialchars($_GET['mensaje']); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
+
+        <!-- Mostrar mensajes de error -->
+        <?php if (!empty($error)): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <?php echo htmlspecialchars($error); ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         <?php endif; ?>
@@ -331,11 +391,12 @@ mysqli_close($conn);
                     <h5 class="modal-title" id="nuevoUsuarioModalLabel">Nuevo Usuario</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form method="POST" action="">
+                <form method="POST" action="" id="nuevoUsuarioForm">
                     <div class="modal-body">
                         <div class="mb-3">
                             <label for="usuario" class="form-label">Usuario *</label>
-                            <input type="text" class="form-control" id="usuario" name="usuario" required>
+                            <input type="text" class="form-control" id="usuario" name="usuario" 
+                                   value="<?php echo isset($form_data['usuario']) ? htmlspecialchars($form_data['usuario']) : ''; ?>" required>
                         </div>
                         <div class="mb-3">
                             <label for="password" class="form-label">Contraseña *</label>
@@ -347,15 +408,28 @@ mysqli_close($conn);
                             </div>
                         </div>
                         <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Confirmar Contraseña *</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                                <span class="input-group-text password-toggle" onclick="togglePassword('confirm_password')">
+                                    <i class="fas fa-eye"></i>
+                                </span>
+                            </div>
+                            <div id="passwordMatchError" class="password-match-error">
+                                Las contraseñas no coinciden
+                            </div>
+                        </div>
+                        <div class="mb-3">
                             <label for="nombre" class="form-label">Nombre Completo *</label>
-                            <input type="text" class="form-control" id="nombre" name="nombre" required>
+                            <input type="text" class="form-control" id="nombre" name="nombre" 
+                                   value="<?php echo isset($form_data['nombre']) ? htmlspecialchars($form_data['nombre']) : ''; ?>" required>
                         </div>
                         <div class="mb-3">
                             <label for="tipo_usuario" class="form-label">Tipo de Usuario *</label>
                             <select class="form-select" id="tipo_usuario" name="tipo_usuario" required>
                                 <option value="" selected disabled>Seleccionar tipo</option>
-                                <option value="admin">Administrador</option>
-                                <option value="user">Usuario</option>
+                                <option value="admin" <?php echo (isset($form_data['tipo_usuario']) && $form_data['tipo_usuario'] == 'admin') ? 'selected' : ''; ?>>Administrador</option>
+                                <option value="user" <?php echo (isset($form_data['tipo_usuario']) && $form_data['tipo_usuario'] == 'user') ? 'selected' : ''; ?>>Usuario</option>
                             </select>
                         </div>
                         <div class="mb-3">
@@ -363,18 +437,22 @@ mysqli_close($conn);
                             <select class="form-select" id="area" name="area" required>
                                 <option value="" selected disabled>Seleccionar área</option>
                                 <?php foreach ($areas_disponibles as $area): ?>
-                                    <option value="<?php echo $area['id']; ?>"><?php echo htmlspecialchars($area['nombre']); ?></option>
+                                    <option value="<?php echo $area['id']; ?>" 
+                                        <?php echo (isset($form_data['area']) && $form_data['area'] == $area['id']) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($area['nombre']); ?>
+                                    </option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="mb-3">
                             <label for="email" class="form-label">Email</label>
-                            <input type="email" class="form-control" id="email" name="email">
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="<?php echo isset($form_data['email']) ? htmlspecialchars($form_data['email']) : ''; ?>">
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" name="crear_usuario" class="btn btn-success">Guardar</button>
+                        <button type="submit" name="crear_usuario" class="btn btn-success" id="submitButton">Guardar</button>
                     </div>
                 </form>
             </div>
@@ -390,7 +468,7 @@ mysqli_close($conn);
                     <h5 class="modal-title" id="editarUsuarioModalLabel">Editar Usuario</h5>
                     <a href="users.php" class="btn-close" aria-label="Close"></a>
                 </div>
-                <form method="POST" action="">
+                <form method="POST" action="" id="editarUsuarioForm">
                     <input type="hidden" name="id" value="<?php echo $usuario_editar['id']; ?>">
                     <div class="modal-body">
                         <div class="mb-3">
@@ -405,6 +483,18 @@ mysqli_close($conn);
                                 <span class="input-group-text password-toggle" onclick="togglePassword('password_edit')">
                                     <i class="fas fa-eye"></i>
                                 </span>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirm_password_edit" class="form-label">Confirmar Nueva Contraseña</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="confirm_password_edit" name="confirm_password">
+                                <span class="input-group-text password-toggle" onclick="togglePassword('confirm_password_edit')">
+                                    <i class="fas fa-eye"></i>
+                                </span>
+                            </div>
+                            <div id="passwordMatchErrorEdit" class="password-match-error">
+                                Las contraseñas no coinciden
                             </div>
                         </div>
                         <div class="mb-3">
@@ -439,7 +529,7 @@ mysqli_close($conn);
                     </div>
                     <div class="modal-footer">
                         <a href="users.php" class="btn btn-secondary">Cancelar</a>
-                        <button type="submit" name="editar_usuario" class="btn btn-success">Guardar Cambios</button>
+                        <button type="submit" name="editar_usuario" class="btn btn-success" id="submitButtonEdit">Guardar Cambios</button>
                     </div>
                 </form>
             </div>
@@ -470,6 +560,54 @@ mysqli_close($conn);
             }
         }
         
+        // Función para validar que las contraseñas coincidan
+        function validatePasswords(formType = 'nuevo') {
+            const passwordField = formType === 'nuevo' ? 'password' : 'password_edit';
+            const confirmField = formType === 'nuevo' ? 'confirm_password' : 'confirm_password_edit';
+            const errorElement = formType === 'nuevo' ? 'passwordMatchError' : 'passwordMatchErrorEdit';
+            const submitButton = formType === 'nuevo' ? 'submitButton' : 'submitButtonEdit';
+            
+            const password = document.getElementById(passwordField).value;
+            const confirmPassword = document.getElementById(confirmField).value;
+            const errorEl = document.getElementById(errorElement);
+            const submitBtn = document.getElementById(submitButton);
+            
+            // Solo validar si ambos campos tienen valor
+            if (password && confirmPassword && password !== confirmPassword) {
+                errorEl.style.display = 'block';
+                submitBtn.disabled = true;
+                return false;
+            } else {
+                errorEl.style.display = 'none';
+                submitBtn.disabled = false;
+                return true;
+            }
+        }
+        
+        // Agregar event listeners a los campos de contraseña para nuevo usuario
+        document.getElementById('password')?.addEventListener('input', () => validatePasswords('nuevo'));
+        document.getElementById('confirm_password')?.addEventListener('input', () => validatePasswords('nuevo'));
+        
+        // Agregar event listeners a los campos de contraseña para editar usuario
+        document.getElementById('password_edit')?.addEventListener('input', () => validatePasswords('editar'));
+        document.getElementById('confirm_password_edit')?.addEventListener('input', () => validatePasswords('editar'));
+        
+        // Validar formulario antes de enviar (nuevo usuario)
+        document.getElementById('nuevoUsuarioForm')?.addEventListener('submit', function(e) {
+            if (!validatePasswords('nuevo')) {
+                e.preventDefault();
+                alert('Por favor, asegúrate de que las contraseñas coincidan.');
+            }
+        });
+        
+        // Validar formulario antes de enviar (editar usuario)
+        document.getElementById('editarUsuarioForm')?.addEventListener('submit', function(e) {
+            if (!validatePasswords('editar')) {
+                e.preventDefault();
+                alert('Por favor, asegúrate de que las contraseñas coincidan.');
+            }
+        });
+        
         // Cerrar modal de edición al hacer clic fuera
         document.addEventListener('click', function(event) {
             const modal = document.getElementById('editarUsuarioModal');
@@ -477,6 +615,15 @@ mysqli_close($conn);
                 window.location.href = 'users.php';
             }
         });
+
+        // Mostrar automáticamente el modal si hay un error
+        <?php if (!empty($error) && isset($_POST['crear_usuario'])): ?>
+            document.addEventListener('DOMContentLoaded', function() {
+                var myModal = new bootstrap.Modal(document.getElementById('nuevoUsuarioModal'));
+                myModal.show();
+            });
+        <?php endif; ?>
     </script>
 </body>
 </html>
+        

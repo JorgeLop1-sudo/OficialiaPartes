@@ -1,3 +1,98 @@
+<?php
+session_start();
+
+// Headers para prevenir caching
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
+// Verificar si el usuario está logueado
+if (!isset($_SESSION['usuario'])) {
+    header("Location: login.php");
+    exit();
+}
+
+// Conexión a la base de datos
+$dbhost = "localhost";
+$dbuser = "root";
+$dbpass = "";
+$dbname = "test";
+
+$conn = mysqli_connect($dbhost, $dbuser, $dbpass, $dbname);
+if (!$conn) {
+    die("No hay conexión: " . mysqli_connect_error());
+}
+
+// Procesar formulario de registro de oficio
+$mensaje = "";
+$tipoMensaje = "";
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Recoger y sanitizar datos del formulario
+    $remitente = mysqli_real_escape_string($conn, $_POST['remitente']);
+    $tipo_persona = mysqli_real_escape_string($conn, $_POST['tipoPersona']);
+    $tipo_documento = mysqli_real_escape_string($conn, $_POST['tipoDocumento']);
+    $numero_documento = isset($_POST['numeroDocumento']) ? mysqli_real_escape_string($conn, $_POST['numeroDocumento']) : null;
+    $folios = mysqli_real_escape_string($conn, $_POST['folios']);
+    $correo = mysqli_real_escape_string($conn, $_POST['correo']);
+    $telefono = mysqli_real_escape_string($conn, $_POST['telefono']);
+    $asunto = mysqli_real_escape_string($conn, $_POST['asunto']);
+    
+    // Valores fijos como solicitaste
+    $area_id = 5; // Valor fijo para area_id
+    $usuario_id = 1; // Valor fijo para usuario_id
+    
+    // Verificar si el área existe
+    $query_area_check = mysqli_query($conn, "SELECT id FROM areas WHERE id = '$area_id'");
+    if (mysqli_num_rows($query_area_check) === 0) {
+        $mensaje = "Error: El área seleccionada no es válida";
+        $tipoMensaje = "error";
+    } else {
+        // Procesar archivo subido
+        $archivo_nombre = null;
+        $archivo_ruta = null;
+        $archivo_ruta2 = null;
+        
+        if (isset($_FILES['archivo']) && $_FILES['archivo']['error'] === UPLOAD_ERR_OK) {
+            $directorio = "../uploads/";
+            if (!file_exists($directorio)) {
+                mkdir($directorio, 0777, true);
+            }
+            
+            $archivo_nombre = basename($_FILES['archivo']['name']);
+            $archivo_temporal = $_FILES['archivo']['tmp_name'];
+            $archivo_ruta = $directorio . time() . '_' . $archivo_nombre;
+            $archivo_ruta2 = '../../'.$directorio . time() . '_' . $archivo_nombre;
+            
+            if (!move_uploaded_file($archivo_temporal, $archivo_ruta)) {
+                $mensaje = "Error al subir el archivo.";
+                $tipoMensaje = "error";
+            }
+        }
+        
+        // Si no hay error hasta ahora, insertar en la base de datos
+        if (empty($mensaje)) {
+            $insert_query = "INSERT INTO oficios (remitente, tipo_persona, tipo_documento, numero_documento, folios, correo, telefono, asunto, archivo_nombre, archivo_ruta, area_id, usuario_id) 
+                            VALUES ('$remitente', '$tipo_persona', '$tipo_documento', '$numero_documento', '$folios', '$correo', '$telefono', '$asunto', '$archivo_nombre', '$archivo_ruta2', '$area_id', '$usuario_id')";
+            
+            if (mysqli_query($conn, $insert_query)) {
+                $mensaje = "Oficio registrado correctamente.";
+                $tipoMensaje = "success";
+                
+                // Limpiar el formulario después de un registro exitoso
+                echo '<script>document.getElementById("registerForm").reset();</script>';
+            } else {
+                $mensaje = "Error al registrar el oficio: " . mysqli_error($conn);
+                $tipoMensaje = "error";
+            }
+        }
+    }
+}
+
+// Cerrar conexión
+mysqli_close($conn);
+?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -24,7 +119,14 @@
         <div class="content">
             <h2 class="page-title"><i class="fas fa-file-alt me-2"></i>Registrar Oficio</h2>
             
-            <form id="registerForm" action="procesar_registro.php" method="POST" enctype="multipart/form-data">
+            <?php if (!empty($mensaje)): ?>
+            <div class="alert alert-<?php echo $tipoMensaje == 'success' ? 'success' : 'danger'; ?> alert-dismissible fade show" role="alert">
+                <?php echo $mensaje; ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            <?php endif; ?>
+            
+            <form id="registerForm" method="POST" enctype="multipart/form-data">
                 <!-- Sección de Remitente -->
                 <div class="form-section">
                     <h3 class="form-section-title">Datos del Remitente</h3>
@@ -54,10 +156,10 @@
                                 </div>
                                 <div class="radio-option">
                                     <input type="radio" id="tipoRucDni" name="tipoDocumento" value="ruc_dni">
-                                    <label for="tipoRucDni">Ingresar RUC o DNI</label>
+                                    <label for="tipoRucDni">Numero de Oficio</label>
                                 </div>
                             </div>
-                            <input type="text" class="form-control" id="numeroDocumento" name="numeroDocumento" placeholder="Número de RUC o DNI" style="display: none;">
+                            <input type="text" class="form-control" id="numeroDocumento" name="numeroDocumento" placeholder="Número de oficio" style="display: none;">
                         </div>
                         <div class="col-md-6">
                             <label for="folios" class="form-label">Folios</label>
@@ -99,6 +201,12 @@
                             <p>Seleccionar archivo</p>
                             <p class="file-name" id="fileName">Ningún archivo seleccionado</p>
                         </div>
+                    </div>
+                    
+                    <!-- Información fija sobre el área y usuario asignado -->
+                    <div class="alert alert-info">
+                        <strong>Información del registro:</strong><br>
+                        - Este documento será dirigido hacia recepción
                     </div>
                 </div>
                 
@@ -151,17 +259,10 @@
             }
         });
         
-        // Validación del formulario
-        document.getElementById('registerForm').addEventListener('submit', function(event) {
-            // Validaciones adicionales podrían ir aquí
-            alert('Trámite registrado con éxito. Será redirigido al inicio.');
-            // event.preventDefault(); // Descomentar para desarrollo
-        });
-        
         // Manejar el botón cancelar
         document.getElementById('cancelButton').addEventListener('click', function() {
             if (confirm('¿Está seguro que desea cancelar? Se perderán todos los datos ingresados.')) {
-                window.location.href = 'index.html';
+                window.location.href = 'index.php';
             }
         });
     </script>

@@ -1,15 +1,164 @@
+<?php
+session_start();
+
+// Headers para prevenir caching
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
+// Verificar si el usuario está logueado y es usuario regular
+if (!isset($_SESSION['usuario']) || $_SESSION['tipo_usuario'] !== 'user') {
+    header("Location: ../../inicio/index.php");
+    exit();
+}
+
+// DEPURACIÓN: Ver qué variables de sesión están disponibles
+// echo "<pre>SESSION: "; print_r($_SESSION); echo "</pre>";
+
+// Conexión a la base de datos
+$dbhost = "localhost";
+$dbuser = "root";
+$dbpass = "";
+$dbname = "test";
+
+$conn = mysqli_connect($dbhost, $dbuser, $dbpass, $dbname);
+if (!$conn) {
+    die("No hay conexión: " . mysqli_connect_error());
+}
+
+// Manejar la solicitud AJAX para obtener usuarios por área
+if (isset($_GET['ajax']) && $_GET['ajax'] == 'usuarios_por_area' && isset($_GET['area_id'])) {
+    $area_id = intval($_GET['area_id']);
+    $usuarios_filtrados = [];
+    
+    if ($area_id > 0) {
+        $query_usuarios_area = "SELECT id, nombre, usuario FROM login WHERE area_id = $area_id ORDER BY nombre";
+        $result_usuarios_area = mysqli_query($conn, $query_usuarios_area);
+        
+        if ($result_usuarios_area) {
+            while ($row = mysqli_fetch_assoc($result_usuarios_area)) {
+                $usuarios_filtrados[] = $row;
+            }
+        }
+    }
+    
+    header('Content-Type: application/json');
+    echo json_encode(['success' => true, 'usuarios' => $usuarios_filtrados]);
+    exit();
+}
+
+// Obtener áreas para el modal de derivación
+$areas = [];
+$query_areas = "SELECT id, nombre FROM areas WHERE activo = 1 ORDER BY nombre";
+$result_areas = mysqli_query($conn, $query_areas);
+
+if ($result_areas) {
+    while ($row = mysqli_fetch_assoc($result_areas)) {
+        $areas[] = $row;
+    }
+}
+
+// Obtener el ID del usuario actual - CORREGIDO
+// Buscar el ID en diferentes posibles ubicaciones de la sesión
+if (isset($_SESSION['id'])) {
+    $usuario_id = $_SESSION['id'];
+} elseif (isset($_SESSION['user_id'])) {
+    $usuario_id = $_SESSION['user_id'];
+} elseif (isset($_SESSION['usuario_id'])) {
+    $usuario_id = $_SESSION['usuario_id'];
+} else {
+    // Si no encontramos el ID, intentamos obtenerlo de la base de datos usando el nombre de usuario
+    $usuario = mysqli_real_escape_string($conn, $_SESSION['usuario']);
+    $query_user = "SELECT id FROM login WHERE usuario = '$usuario'";
+    $result_user = mysqli_query($conn, $query_user);
+    
+    if ($result_user && mysqli_num_rows($result_user) > 0) {
+        $user_data = mysqli_fetch_assoc($result_user);
+        $usuario_id = $user_data['id'];
+        // Guardamos en sesión para próximas requests
+        $_SESSION['id'] = $usuario_id;
+    } else {
+        die("Error: No se pudo determinar el ID del usuario. Contacte al administrador.");
+    }
+}
+
+// Procesar búsqueda y filtros
+$filtro_numero = isset($_GET['numero']) ? mysqli_real_escape_string($conn, $_GET['numero']) : '';
+$filtro_estado = isset($_GET['estado']) ? mysqli_real_escape_string($conn, $_GET['estado']) : '';
+
+// Construir consulta base - SOLO expedientes asignados al usuario actual
+$query = "
+    SELECT o.*, a.nombre as area_nombre, l.nombre as usuario_nombre,
+           ad.nombre as area_derivada_nombre, ud.nombre as usuario_derivado_nombre
+    FROM oficios o 
+    LEFT JOIN areas a ON o.area_id = a.id 
+    LEFT JOIN login l ON o.usuario_id = l.id
+    LEFT JOIN areas ad ON o.area_derivada_id = ad.id
+    LEFT JOIN login ud ON o.usuario_derivado_id = ud.id
+    WHERE o.activo = 1 AND o.usuario_derivado_id = '$usuario_id'
+";
+
+// Aplicar filtros
+if (!empty($filtro_numero)) {
+    $query .= " AND o.numero_documento LIKE '%$filtro_numero%'";
+}
+
+if (!empty($filtro_estado)) {
+    $query .= " AND o.estado = '$filtro_estado'";
+}
+
+$query .= " ORDER BY o.fecha_registro DESC";
+
+// Ejecutar consulta
+$result = mysqli_query($conn, $query);
+$expedientes = [];
+
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $expedientes[] = $row;
+    }
+} else {
+    $mensaje_error = "Error en la consulta: " . mysqli_error($conn);
+}
+
+// Procesar derivación de oficio (para usuarios regulares)
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['derivar_oficio'])) {
+    $oficio_id = mysqli_real_escape_string($conn, $_POST['oficio_id']);
+    $area_derivada = mysqli_real_escape_string($conn, $_POST['area_derivada']);
+    $usuario_derivado = mysqli_real_escape_string($conn, $_POST['usuario_derivado']);
+    $respuesta = mysqli_real_escape_string($conn, $_POST['respuesta']);
+    
+    $update_query = "UPDATE oficios SET 
+                    area_derivada_id = '$area_derivada',
+                    usuario_derivado_id = '$usuario_derivado',
+                    respuesta = '$respuesta',
+                    estado = 'tramite',  -- Para el nuevo usuario será pendiente
+                    fecha_derivacion = NOW()
+                    WHERE id = '$oficio_id' AND usuario_derivado_id = '$usuario_id'";
+    
+    if (mysqli_query($conn, $update_query)) {
+        header("Location: expedientesuser.php?mensaje=Oficio derivado correctamente");
+        exit();
+    } else {
+        $mensaje_error = "Error al derivar el oficio: " . mysqli_error($conn);
+    }
+}
+
+// Cerrar conexión
+mysqli_close($conn);
+?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SIS-OP - Gestión de Expedientes</title>
+    <title>SIS-OP - Mis Expedientes</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.1/css/dataTables.bootstrap5.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.2/css/buttons.bootstrap5.min.css">
     <link rel="stylesheet" href="..\..\css\dashboard\styledash.css">
-    
 </head>
 <body>
     
@@ -21,13 +170,13 @@
         
         <ul class="nav flex-column">
             <li class="nav-item">
-                <a class="nav-link active" href="homeuser.php">
+                <a class="nav-link" href="homeuser.php">
                     <i class="fas fa-home"></i>
                     <span>Inicio</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="expedientesuser.php">
+                <a class="nav-link active" href="expedientesuser.php">
                     <i class="fas fa-folder"></i>
                     <span>Expedientes</span>
                 </a>
@@ -39,7 +188,7 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="../../inicio/index.php">
+                <a class="nav-link" href="../../inicio/logout.php">
                     <i class="fas fa-sign-out-alt"></i>
                     <span>Cerrar Sesión</span>
                 </a>
@@ -51,57 +200,65 @@
     <div class="main-content">
         <!-- Header -->
         <div class="header">
-            <h2 class="mb-0">Dashboard</h2>
+            <h2 class="mb-0">Dashboard Usuario</h2>
             <div class="user-info">
-                <div class="user-avatar">AD</div>
+                <div class="user-avatar"><?php echo substr($_SESSION['nombre'], 0, 2); ?></div>
                 <div>
-                    <div class="fw-bold">Admin User</div>
-                    <div class="small text-muted">Administrador</div>
+                    <div class="fw-bold"><?php echo $_SESSION['nombre']; ?></div>
+                    <div class="small text-muted"><?php echo $_SESSION['tipo_usuario']; ?></div>
                 </div>
             </div>
         </div>
 
-        
+        <!-- Mostrar mensajes -->
+        <?php if (isset($_GET['mensaje'])): ?>
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <?php echo htmlspecialchars($_GET['mensaje']); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
+
+        <?php if (isset($mensaje_error)): ?>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <?php echo $mensaje_error; ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
+
         <!-- Page Title -->
-        <h3 class="page-title">Gestión de Expedientes</h3>
+        <h3 class="page-title">Mis Expedientes</h3>
 
         <!-- Search Section -->
         <div class="search-section">
             <h5 class="search-title">Búsqueda de Expedientes</h5>
-            <div class="search-grid">
-                <div class="search-field">
-                    <label for="nroExpediente">Nro. Expediente</label>
-                    <input type="text" id="nroExpediente" placeholder="Ingrese número de expediente">
+            <form method="GET" action="">
+                <div class="search-grid">
+                    <div class="search-field">
+                        <label for="numero">Número de Documento</label>
+                        <input type="text" id="numero" name="numero" placeholder="Ingrese número de documento" value="<?php echo htmlspecialchars($filtro_numero); ?>">
+                    </div>
+                    <div class="search-field">
+                        <label for="estado">Estado</label>
+                        <select id="estado" name="estado">
+                            <option value="">Todos los estados</option>
+                            <option value="pendiente" <?php echo $filtro_estado == 'pendiente' ? 'selected' : ''; ?>>Pendiente</option>
+                            <option value="tramite" <?php echo $filtro_estado == 'tramite' ? 'selected' : ''; ?>>En tramite</option>
+                            <option value="completado" <?php echo $filtro_estado == 'completado' ? 'selected' : ''; ?>>Completado</option>
+                            <option value="denegado" <?php echo $filtro_estado == 'denegado' ? 'selected' : ''; ?>>Denegado</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="search-field">
-                    <label for="codigo">Código</label>
-                    <input type="text" id="codigo" placeholder="Ingrese código">
+                <div class="search-actions">
+                    <a href="expedientesuser.php" class="btn btn-secondary">Limpiar</a>
+                    <button type="submit" class="btn btn-primary">Buscar</button>
                 </div>
-                <div class="search-field">
-                    <label for="archivo">Archivo</label>
-                    <input type="text" id="archivo" placeholder="Buscar por archivo">
-                </div>
-                <div class="search-field">
-                    <label for="estado">Estado</label>
-                    <select id="estado">
-                        <option value="">Todos los estados</option>
-                        <option value="pendiente">Pendiente</option>
-                        <option value="proceso">En proceso</option>
-                        <option value="completado">Completado</option>
-                        <option value="denegado">Denegado</option>
-                    </select>
-                </div>
-            </div>
-            <div class="search-actions">
-                <button class="btn btn-secondary">Limpiar</button>
-                <button class="btn btn-primary">Buscar</button>
-            </div>
+            </form>
         </div>
 
         <!-- Table Card -->
         <div class="card">
             <div class="card-header">
-                <h5>Listado de Expedientes</h5>
+                <h5>Listado de Expedientes Asignados</h5>
                 <div class="export-buttons">
                     <!-- Los botones se generarán automáticamente con DataTables -->
                 </div>
@@ -114,90 +271,139 @@
                             <th>Fecha/Hora</th>
                             <th>Remitente</th>
                             <th>Asunto</th>
-                            <th>Nro. Expediente</th>
+                            <th>Nro. Documento</th>
                             <th>Estado</th>
+                            <th>Derivado a</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td>1</td>
-                            <td>2023-07-25 16:36:59</td>
-                            <td>María Brass</td>
-                            <td>SOLICITUD DE RECORD ACADEMICO</td>
-                            <td>2023-001</td>
-                            <td><span class="badge-estado badge-pendiente">Pendiente</span></td>
-                            <td class="action-buttons">
-                                <button class="btn btn-sm btn-primary" title="Ver detalles">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="btn btn-sm btn-warning" title="Editar">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" title="Eliminar">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>2</td>
-                            <td>2023-07-26 09:15:32</td>
-                            <td>Juan Pérez</td>
-                            <td>SOLICITUD DE CERTIFICADO DE ESTUDIOS</td>
-                            <td>2023-002</td>
-                            <td><span class="badge-estado badge-proceso">En proceso</span></td>
-                            <td class="action-buttons">
-                                <button class="btn btn-sm btn-primary" title="Ver detalles">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="btn btn-sm btn-warning" title="Editar">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" title="Eliminar">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>3</td>
-                            <td>2023-07-27 11:45:18</td>
-                            <td>Carlos López</td>
-                            <td>SOLICITUD DE CONSTANCIA DE TRABAJO</td>
-                            <td>2023-003</td>
-                            <td><span class="badge-estado badge-completado">Completado</span></td>
-                            <td class="action-buttons">
-                                <button class="btn btn-sm btn-primary" title="Ver detalles">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="btn btn-sm btn-warning" title="Editar">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" title="Eliminar">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>4</td>
-                            <td>2023-07-28 14:20:45</td>
-                            <td>Ana García</td>
-                            <td>SOLICITUD DE PERMISO ADMINISTRATIVO</td>
-                            <td>2023-004</td>
-                            <td><span class="badge-estado badge-denegado">Denegado</span></td>
-                            <td class="action-buttons">
-                                <button class="btn btn-sm btn-primary" title="Ver detalles">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                                <button class="btn btn-sm btn-warning" title="Editar">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger" title="Eliminar">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
+                        <?php if (empty($expedientes)): ?>
+                            <tr>
+                                <td colspan="8" class="text-center">No se encontraron expedientes asignados</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($expedientes as $expediente): ?>
+                                <tr>
+                                    <td><?php echo $expediente['id']; ?></td>
+                                    <td><?php echo date('d/m/Y H:i', strtotime($expediente['fecha_registro'])); ?></td>
+                                    <td><?php echo htmlspecialchars($expediente['remitente']); ?></td>
+                                    <td><?php echo htmlspecialchars($expediente['asunto']); ?></td>
+                                    <td><?php echo htmlspecialchars($expediente['numero_documento'] ?? 'N/A'); ?></td>
+                                    <td>
+                                        <?php 
+                                        $badge_class = '';
+                                        switch ($expediente['estado']) {
+                                            case 'pendiente':
+                                                $badge_class = 'badge-pendiente';
+                                                $estado_texto = 'Pendiente';
+                                                break;
+                                            case 'tramite':
+                                                $badge_class = 'badge-proceso';
+                                                $estado_texto = 'En tramite';
+                                                break;
+                                            case 'completado':
+                                                $badge_class = 'badge-completado';
+                                                $estado_texto = 'Completado';
+                                                break;
+                                            case 'denegado':
+                                                $badge_class = 'badge-denegado';
+                                                $estado_texto = 'Denegado';
+                                                break;
+                                            default:
+                                                $badge_class = 'badge-pendiente';
+                                                $estado_texto = 'Pendiente';
+                                        }
+                                        ?>
+                                        <span class="badge-estado <?php echo $badge_class; ?>"><?php echo $estado_texto; ?></span>
+                                    </td>
+                                    <td>
+                                        <?php if (!empty($expediente['area_derivada_nombre'])): ?>
+                                            <div><strong>Área:</strong> <?php echo htmlspecialchars($expediente['area_derivada_nombre']); ?></div>
+                                            <?php if (!empty($expediente['usuario_derivado_nombre'])): ?>
+                                                <div><strong>Usuario:</strong> <?php echo htmlspecialchars($expediente['usuario_derivado_nombre']); ?></div>
+                                            <?php endif; ?>
+                                            <?php if (!empty($expediente['fecha_derivacion'])): ?>
+                                                <div class="info-derivacion">
+                                                    <?php echo date('d/m/Y H:i', strtotime($expediente['fecha_derivacion'])); ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <span class="text-muted">No derivado</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="action-buttons">
+                                        <!-- Ver documento -->
+                                        <?php if (!empty($expediente['archivo_ruta'])): ?>
+                                            <a href="<?php echo $expediente['archivo_ruta']; ?>" target="_blank" class="btn btn-sm btn-primary" title="Ver documento">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        <?php else: ?>
+                                            <button class="btn btn-sm btn-secondary" title="Sin documento" disabled>
+                                                <i class="fas fa-eye-slash"></i>
+                                            </button>
+                                        <?php endif; ?>
+                                        
+                                        <!-- Derivar documento -->
+                                        <button class="btn btn-sm btn-warning" title="Derivar documento" onclick="abrirModalDerivacion(<?php echo $expediente['id']; ?>, '<?php echo htmlspecialchars($expediente['respuesta'] ?? ''); ?>')">
+                                            <i class="fas fa-share"></i>
+                                        </button>
+                                        
+                                        <!-- Responder documento -->
+                                        <a href="responder_oficio.php?id=<?php echo $expediente['id']; ?>" class="btn btn-sm btn-success" title="Responder documento">
+                                            <i class="fas fa-reply"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Derivación -->
+    <div class="modal fade" id="modalDerivacion" tabindex="-1" aria-labelledby="modalDerivacionLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalDerivacionLabel">Derivar Oficio</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="">
+                    <div class="modal-body">
+                        <input type="hidden" name="oficio_id" id="oficio_id">
+                        <input type="hidden" name="derivar_oficio" value="1">
+                        
+                        <div class="mb-3">
+                            <label for="area_derivada" class="form-label">Área de Destino</label>
+                            <select class="form-select" id="area_derivada" name="area_derivada" required onchange="cargarUsuariosPorArea(this.value)">
+                                <option value="">Seleccionar área</option>
+                                <?php foreach ($areas as $area): ?>
+                                    <option value="<?php echo $area['id']; ?>"><?php echo htmlspecialchars($area['nombre']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="usuario_derivado" class="form-label">Usuario de Destino (Opcional)</label>
+                            <select class="form-select" id="usuario_derivado" name="usuario_derivado">
+                                <option value="">Seleccionar usuario</option>
+                                <!-- Los usuarios se cargarán dinámicamente mediante AJAX -->
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="respuesta" class="form-label">Respuesta/Comentario</label>
+                            <textarea class="form-control" id="respuesta" name="respuesta" rows="4" placeholder="Ingrese una respuesta o comentario sobre este oficio"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Derivar Oficio</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -224,7 +430,7 @@
                 buttons: [
                     {
                         extend: 'copy',
-                        text: '<i class="fas fa-copy"></i> Copy',
+                        text: '<i class="fas fa-copy"></i> Copiar',
                         className: 'btn btn-sm btn-secondary'
                     },
                     {
@@ -244,12 +450,7 @@
                     },
                     {
                         extend: 'print',
-                        text: '<i class="fas fa-print"></i> Print',
-                        className: 'btn btn-sm btn-secondary'
-                    },
-                    {
-                        extend: 'colvis',
-                        text: '<i class="fas fa-eye"></i> Column Visibility',
+                        text: '<i class="fas fa-print"></i> Imprimir',
                         className: 'btn btn-sm btn-secondary'
                     }
                 ],
@@ -258,12 +459,59 @@
                 },
                 responsive: true,
                 pageLength: 10,
-                lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Todos"]]
+                lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
+                order: [[0, 'desc']]
             });
             
             // Mover los botones de exportación al contenedor correcto
             $('.dt-buttons').appendTo('.export-buttons');
         });
+
+        function abrirModalDerivacion(id, respuesta) {
+            $('#oficio_id').val(id);
+            $('#respuesta').val(respuesta);
+            
+            // Resetear selects al abrir el modal
+            $('#area_derivada').val('');
+            $('#usuario_derivado').html('<option value="">Seleccionar usuario</option>');
+            
+            $('#modalDerivacion').modal('show');
+        }
+
+        // Función para cargar usuarios por área mediante AJAX
+        function cargarUsuariosPorArea(areaId) {
+            if (!areaId) {
+                $('#usuario_derivado').html('<option value="">Seleccionar usuario</option>');
+                return;
+            }
+            
+            $.ajax({
+                url: 'expedientesuser.php?ajax=usuarios_por_area&area_id=' + areaId,
+                type: 'GET',
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success) {
+                        var options = '<option value="">Seleccionar usuario</option>';
+                        
+                        $.each(response.usuarios, function(index, usuario) {
+                            options += '<option value="' + usuario.id + '">' + 
+                                       usuario.nombre + ' (' + usuario.usuario + ')' + 
+                                       '</option>';
+                        });
+                        
+                        $('#usuario_derivado').html(options);
+                    } else {
+                        alert('Error al cargar los usuarios');
+                        $('#usuario_derivado').html('<option value="">Seleccionar usuario</option>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error en la solicitud AJAX:', error);
+                    alert('Error al cargar los usuarios. Por favor, intente nuevamente.');
+                    $('#usuario_derivado').html('<option value="">Seleccionar usuario</option>');
+                }
+            });
+        }
     </script>
 </body>
 </html>
