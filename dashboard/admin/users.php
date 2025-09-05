@@ -152,13 +152,20 @@ if (isset($_GET['eliminar'])) {
     
     // No permitir eliminarse a sí mismo
     if ($id != $_SESSION['id_usuario']) {
-        $delete_query = "DELETE FROM login WHERE id = '$id'";
-        if (mysqli_query($conn, $delete_query)) {
-            $mensaje = "Usuario eliminado exitosamente";
-            header("Location: users.php?mensaje=" . urlencode($mensaje));
-            exit();
+        // Primero, actualizar los oficios que hacen referencia a este usuario
+        $update_oficios_query = "UPDATE oficios SET usuario_derivado_id = NULL WHERE usuario_derivado_id = '$id'";
+        if (mysqli_query($conn, $update_oficios_query)) {
+            // Luego eliminar el usuario
+            $delete_query = "DELETE FROM login WHERE id = '$id'";
+            if (mysqli_query($conn, $delete_query)) {
+                $mensaje = "Usuario eliminado exitosamente. Los oficios relacionados se mantienen en el sistema.";
+                header("Location: users.php?mensaje=" . urlencode($mensaje));
+                exit();
+            } else {
+                $error = "Error al eliminar usuario: " . mysqli_error($conn);
+            }
         } else {
-            $error = "Error al eliminar usuario: " . mysqli_error($conn);
+            $error = "Error al actualizar oficios: " . mysqli_error($conn);
         }
     } else {
         $error = "No puedes eliminarte a ti mismo";
@@ -541,7 +548,7 @@ mysqli_close($conn);
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function confirmarEliminacion(id, usuario) {
-            if (confirm(`¿Estás seguro de eliminar al usuario "${usuario}"? Esta acción no se puede deshacer.`)) {
+            if (confirm(`¿Estás seguro de eliminar al usuario "${usuario}"? Los oficios relacionados se mantendrán en el sistema.`)) {
                 window.location.href = `?eliminar=${id}`;
             }
         }
@@ -626,4 +633,3 @@ mysqli_close($conn);
     </script>
 </body>
 </html>
-        
