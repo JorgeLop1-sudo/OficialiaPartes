@@ -96,7 +96,7 @@ function getActivityIcon($estado) {
     switch ($estado) {
         case 'pendiente':
             return 'fas fa-clock text-warning';
-        case 'procesado':
+        case 'tramite':
             return 'fas fa-tasks text-primary';
         case 'completado':
             return 'fas fa-check-circle text-success';
@@ -112,7 +112,7 @@ function getActivityText($oficio) {
     switch ($oficio['estado']) {
         case 'pendiente':
             return "Nuevo oficio registrado: " . $oficio['asunto'];
-        case 'procesado':
+        case 'tramite':
             return "Oficio en trámite: " . $oficio['asunto'];
         case 'completado':
             return "Oficio completado: " . $oficio['asunto'];
@@ -210,7 +210,7 @@ function getActivityText($oficio) {
                 <div class="stat-title">Pendientes</div>
             </div>
             
-            <div class="stat-card in-process" onclick="filterOficios('procesado')">
+            <div class="stat-card in-process" onclick="filterOficios('tramite')">
                 <div class="stat-icon">
                     <i class="fas fa-tasks"></i>
                 </div>
@@ -257,7 +257,7 @@ function getActivityText($oficio) {
                                     case 'pendiente':
                                         echo "Nuevo Oficio Registrado";
                                         break;
-                                    case 'procesado':
+                                    case 'tramite':
                                         echo "Oficio en Trámite";
                                         break;
                                     case 'completado':

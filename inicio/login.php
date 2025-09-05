@@ -5,7 +5,7 @@ session_start(); // Iniciar sesión
 $identificador = "";
 $pass = "";
 $error = "";
-$login_type = "user";
+$login_type = "users";
 
 // Verificar si se envió el formulario
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Prevenir SQL Injection
     $identificador = mysqli_real_escape_string($conn, $_POST["identificador"]);
     $pass = mysqli_real_escape_string($conn, $_POST["password"]);
-    $login_type = isset($_POST["login_type"]) ? $_POST["login_type"] : "user";
+    $login_type = isset($_POST["login_type"]) ? $_POST["login_type"] : "users";
 
     // Determinar el campo según la selección del usuario
     if ($login_type === "email") {
@@ -49,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Verificar contraseña
             if (password_verify($pass, $user['password'])) {
                 // Almacenar información en sesión
+                $_SESSION['id'] = $user['id'];
                 $_SESSION['usuario'] = $user['usuario'];
                 $_SESSION['nombre'] = $user['nombre'];
                 $_SESSION['tipo_usuario'] = $user['tipo_usuario'];
@@ -105,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- Selector de tipo de login -->
             <div class="login-type">
-                <div class="login-option <?php echo $login_type === 'user' ? 'active' : ''; ?>" id="option-user" data-type="user">
+                <div class="login-option <?php echo $login_type === 'users' ? 'active' : ''; ?>" id="option-user" data-type="users">
                     <i class="fas fa-user"></i> Usuario
                 </div>
                 <div class="login-option <?php echo $login_type === 'email' ? 'active' : ''; ?>" id="option-email" data-type="email">
@@ -159,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         optionEmail.classList.remove('active');
         labelIdentificador.textContent = 'Usuario';
         inputIdentificador.placeholder = 'Ingrese su usuario';
-        hiddenLoginType.value = 'user';
+        hiddenLoginType.value = 'users';
     });
     
     optionEmail.addEventListener('click', () => {

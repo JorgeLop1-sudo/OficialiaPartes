@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         // Simulamos el envío para testing
         $token = bin2hex(random_bytes(32));
-        $reset_link = "http://" . $_SERVER['HTTP_HOST'] . "../recovery/reset-password.php?token=$token";
+        $reset_link = "http://" . $_SERVER['HTTP_HOST'] . "/inicio/recovery/reset-password.php?token=$token";
         
         // Mensaje de simulación (en producción se enviaría un email real)
         $message = "<div class='alert alert-info'>

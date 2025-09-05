@@ -241,12 +241,13 @@ mysqli_close($conn);
                         <label for="estado">Estado</label>
                         <select id="estado" name="estado">
                             <option value="">Todos los estados</option>
-                            <option value="pendiente" <?php echo $filtro_estado == 'pendiente' ? 'selected' : ''; ?>>Pendiente</option>
+                            
                             <option value="tramite" <?php echo $filtro_estado == 'tramite' ? 'selected' : ''; ?>>En tramite</option>
                             <option value="completado" <?php echo $filtro_estado == 'completado' ? 'selected' : ''; ?>>Completado</option>
                             <option value="denegado" <?php echo $filtro_estado == 'denegado' ? 'selected' : ''; ?>>Denegado</option>
                         </select>
                     </div>
+
                 </div>
                 <div class="search-actions">
                     <a href="expedientesuser.php" class="btn btn-secondary">Limpiar</a>
@@ -263,26 +264,49 @@ mysqli_close($conn);
                     <!-- Los botones se generarán automáticamente con DataTables -->
                 </div>
             </div>
-            <div class="table-container">
-                <table id="expedientesTable" class="table table-striped table-hover" style="width:100%">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Fecha/Hora</th>
-                            <th>Remitente</th>
-                            <th>Asunto</th>
-                            <th>Nro. Documento</th>
-                            <th>Estado</th>
-                            <th>Derivado a</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($expedientes)): ?>
+            <!-- AQUIIIII -->
+                        <div class="table-container">
+                <?php if (empty($expedientes)): ?>
+                    <!-- Mensaje cuando no hay expedientes -->
+                    <div class="no-expedientes-message">
+                        <i class="fas fa-folder-open"></i>
+                        <h4>No se encontraron expedientes asignados en ese estado</h4>
+                        <p>No hay expedientes que coincidan con los criterios de búsqueda.</p>
+                    </div>
+                    
+                    <!-- Tabla oculta para DataTables (necesaria para evitar errores) -->
+                    <table id="expedientesTable" class="table table-striped table-hover" style="width:100%; display:none;">
+                        <thead>
                             <tr>
-                                <td colspan="8" class="text-center">No se encontraron expedientes asignados</td>
+                                <th>ID</th>
+                                <th>Fecha/Hora</th>
+                                <th>Remitente</th>
+                                <th>Asunto</th>
+                                <th>Nro. Documento</th>
+                                <th>Estado</th>
+                                <th>Derivado a</th>
+                                <th>Acciones</th>
                             </tr>
-                        <?php else: ?>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <!-- Tabla normal cuando sí hay expedientes -->
+                    <table id="expedientesTable" class="table table-striped table-hover" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Fecha/Hora</th>
+                                <th>Remitente</th>
+                                <th>Asunto</th>
+                                <th>Nro. Documento</th>
+                                <th>Estado</th>
+                                <th>Derivado a</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                             <?php foreach ($expedientes as $expediente): ?>
                                 <tr>
                                     <td><?php echo $expediente['id']; ?></td>
@@ -356,10 +380,11 @@ mysqli_close($conn);
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
             </div>
+            <!-- AQQUIIIII -->
         </div>
     </div>
 
@@ -425,6 +450,7 @@ mysqli_close($conn);
     <script>
         $(document).ready(function() {
             // Inicializar DataTable con botones de exportación
+            if ($('#expedientesTable:visible').length) {
             $('#expedientesTable').DataTable({
                 dom: 'Bfrtip',
                 buttons: [
@@ -462,7 +488,7 @@ mysqli_close($conn);
                 lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Todos"]],
                 order: [[0, 'desc']]
             });
-            
+        }
             // Mover los botones de exportación al contenedor correcto
             $('.dt-buttons').appendTo('.export-buttons');
         });

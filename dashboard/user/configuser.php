@@ -1,3 +1,143 @@
+<?php
+session_start();
+
+// Headers para prevenir caching
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
+// Verificar si el usuario está logueado y es usuario normal
+if (!isset($_SESSION['usuario']) || $_SESSION['tipo_usuario'] !== 'user') {
+    header("Location: ../../inicio/index.php");
+    exit();
+}
+
+// Conexión a la base de datos
+$dbhost = "localhost";
+$dbuser = "root";
+$dbpass = "";
+$dbname = "test";
+
+$conn = mysqli_connect($dbhost, $dbuser, $dbpass, $dbname);
+if (!$conn) {
+    die("No hay conexión: " . mysqli_connect_error());
+}
+
+// Obtener datos del usuario actual
+$usuario_actual = [];
+$usuario_id = $_SESSION['id'] ?? 0;
+$query_usuario = "SELECT l.*, a.nombre as area_nombre 
+                  FROM login l 
+                  LEFT JOIN areas a ON l.area_id = a.id 
+                  WHERE l.id = $usuario_id";
+$result_usuario = mysqli_query($conn, $query_usuario);
+
+if ($result_usuario && mysqli_num_rows($result_usuario) > 0) {
+    $usuario_actual = mysqli_fetch_assoc($result_usuario);
+} else {
+    // Si no se encuentra el usuario, redirigir al login
+    header("Location: ../../inicio/index.php");
+    exit();
+}
+
+// Procesar actualización de datos de usuario
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_user') {
+    $user_id = intval($_POST['user_id']);
+    $nombre = mysqli_real_escape_string($conn, $_POST['nombre']);
+    $usuario = mysqli_real_escape_string($conn, $_POST['usuario']);
+    $email = mysqli_real_escape_string($conn, $_POST['email']);
+    
+    // Validar que el usuario que intenta modificar es el mismo de la sesión o es admin
+    if ($_SESSION['id'] != $user_id && $_SESSION['tipo_usuario'] != 'admin') {
+        echo json_encode(['success' => false, 'message' => 'No tienes permisos para modificar este usuario']);
+        exit();
+    }
+    
+    // Verificar si el nombre de usuario ya existe (excluyendo el usuario actual)
+    $query_check_user = "SELECT id FROM login WHERE usuario = '$usuario' AND id != $user_id";
+    $result_check_user = mysqli_query($conn, $query_check_user);
+    
+    if (mysqli_num_rows($result_check_user) > 0) {
+        echo json_encode(['success' => false, 'message' => 'El nombre de usuario ya está en uso']);
+        exit();
+    }
+    
+    // Verificar si el email ya existe (excluyendo el usuario actual)
+    $query_check_email = "SELECT id FROM login WHERE email = '$email' AND id != $user_id";
+    $result_check_email = mysqli_query($conn, $query_check_email);
+    
+    if (mysqli_num_rows($result_check_email) > 0) {
+        echo json_encode(['success' => false, 'message' => 'El correo electrónico ya está en uso']);
+        exit();
+    }
+    
+    // Actualizar datos del usuario
+    $query_update = "UPDATE login SET nombre = '$nombre', usuario = '$usuario', email = '$email' WHERE id = $user_id";
+    $result_update = mysqli_query($conn, $query_update);
+    
+    if ($result_update) {
+        // Actualizar datos en la sesión si es el usuario actual
+        if ($_SESSION['id'] == $user_id) {
+            $_SESSION['nombre'] = $nombre;
+            $_SESSION['usuario'] = $usuario;
+        }
+        
+        echo json_encode(['success' => true, 'message' => 'Datos actualizados correctamente']);
+        exit();
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error al actualizar los datos: ' . mysqli_error($conn)]);
+        exit();
+    }
+}
+
+// Procesar actualización de contraseña
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_password') {
+    $user_id = intval($_POST['user_id']);
+    $currentPassword = $_POST['currentPassword'];
+    $newPassword = $_POST['newPassword'];
+    
+    // Validar que el usuario que intenta modificar es el mismo de la sesión o es admin
+    if ($_SESSION['id'] != $user_id && $_SESSION['tipo_usuario'] != 'admin') {
+        echo json_encode(['success' => false, 'message' => 'No tienes permisos para modificar este usuario']);
+        exit();
+    }
+    
+    // Obtener la contraseña actual del usuario
+    $query_user = "SELECT password FROM login WHERE id = $user_id";
+    $result_user = mysqli_query($conn, $query_user);
+    
+    if (!$result_user || mysqli_num_rows($result_user) == 0) {
+        echo json_encode(['success' => false, 'message' => 'Usuario no encontrado']);
+        exit();
+    }
+    
+    $user_data = mysqli_fetch_assoc($result_user);
+    
+    // Verificar la contraseña actual
+    if (!password_verify($currentPassword, $user_data['password'])) {
+        echo json_encode(['success' => false, 'message' => 'La contraseña actual es incorrecta']);
+        exit();
+    }
+    
+    // Hashear la nueva contraseña
+    $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+    
+    // Actualizar la contraseña
+    $query_update = "UPDATE login SET password = '$hashedPassword' WHERE id = $user_id";
+    $result_update = mysqli_query($conn, $query_update);
+    
+    if ($result_update) {
+        echo json_encode(['success' => true, 'message' => 'Contraseña actualizada correctamente']);
+        exit();
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error al actualizar la contraseña: ' . mysqli_error($conn)]);
+        exit();
+    }
+}
+
+// Cerrar conexión
+mysqli_close($conn);
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -8,7 +148,31 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="..\..\css\dashboard\styleconfig.css">
     <link rel="stylesheet" href="..\..\css\dashboard\styledash.css">
-
+    <style>
+        .config-section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .password-feedback, .user-feedback {
+            display: none;
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+        
+        .required-field::after {
+            content: " *";
+            color: red;
+        }
+    </style>
 </head>
 <body>
     
@@ -20,7 +184,7 @@
         
         <ul class="nav flex-column">
             <li class="nav-item">
-                <a class="nav-link active" href="homeuser.php">
+                <a class="nav-link " href="homeuser.php">
                     <i class="fas fa-home"></i>
                     <span>Inicio</span>
                 </a>
@@ -32,13 +196,13 @@
                 </a>
             </li>
             <li class="nav-item mt-4">
-                <a class="nav-link" href="configuser.php">
+                <a class="nav-link active" href="configuser.php">
                     <i class="fas fa-cog"></i>
                     <span>Configuración</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="../../inicio/index.php">
+                <a class="nav-link" href="../../inicio/logout.php">
                     <i class="fas fa-sign-out-alt"></i>
                     <span>Cerrar Sesión</span>
                 </a>
@@ -50,12 +214,12 @@
     <div class="main-content">
         <!-- Header -->
         <div class="header">
-            <h2 class="mb-0">Sistema de Mesa de Partes Virtual</h2>
+            <h2 class="mb-0">Dashboard Usuario</h2>
             <div class="user-info">
-                <div class="user-avatar">AD</div>
+                <div class="user-avatar"><?php echo substr($_SESSION['nombre'], 0, 2); ?></div>
                 <div>
-                    <div class="fw-bold">Admin User</div>
-                    <div class="small text-muted">Administrador</div>
+                    <div class="fw-bold"><?php echo $_SESSION['nombre']; ?></div>
+                    <div class="small text-muted"><?php echo $_SESSION['tipo_usuario']; ?></div>
                 </div>
             </div>
         </div>
@@ -63,197 +227,102 @@
         <!-- Page Title -->
         <h3 class="page-title">Configuración del Sistema</h3>
 
-        <!-- Configuration Cards -->
-        <div class="config-container">
-            <!-- General Settings -->
-            <div class="config-card">
-                <div class="config-card-header">
-                    <div class="config-icon">
-                        <i class="fas fa-sliders-h"></i>
-                    </div>
-                    <h5 class="config-title">Configuración General</h5>
-                </div>
-                <div class="config-content">
-                    <div class="config-item">
-                        <span class="config-item-label">Nombre del Sistema</span>
-                        <span class="config-item-value">SIS-MPV</span>
-                    </div>
-                    <div class="config-item">
-                        <span class="config-item-label">Versión</span>
-                        <span class="config-item-value">v2.1.0</span>
-                    </div>
-                    <div class="config-item">
-                        <span class="config-item-label">Máximo de archivos por expediente</span>
-                        <span class="config-item-value">10</span>
-                    </div>
-                    <div class="config-item">
-                        <span class="config-item-label">Tamaño máximo por archivo (MB)</span>
-                        <span class="config-item-value">20</span>
-                    </div>
-                </div>
-                <div class="config-actions">
-                    <button class="btn btn-primary btn-sm">
-                        <i class="fas fa-edit me-1"></i> Editar
-                    </button>
-                </div>
-            </div>
-
-            <!-- Notifications -->
-            <div class="config-card">
-                <div class="config-card-header">
-                    <div class="config-icon">
-                        <i class="fas fa-bell"></i>
-                    </div>
-                    <h5 class="config-title">Notificaciones</h5>
-                </div>
-                <div class="config-content">
-                    <div class="config-item">
-                        <span class="config-item-label">Notificaciones por email</span>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="emailNotifications" checked>
-                        </div>
-                    </div>
-                    <div class="config-item">
-                        <span class="config-item-label">Notificaciones en sistema</span>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="systemNotifications" checked>
-                        </div>
-                    </div>
-                    <div class="config-item">
-                        <span class="config-item-label">Notificar nuevos expedientes</span>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="newExpedientes" checked>
-                        </div>
-                    </div>
-                    <div class="config-item">
-                        <span class="config-item-label">Notificar cambios de estado</span>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="statusChanges" checked>
-                        </div>
-                    </div>
-                </div>
-                <div class="config-actions">
-                    <button class="btn btn-primary btn-sm">
-                        <i class="fas fa-save me-1"></i> Guardar
-                    </button>
-                </div>
-            </div>
-
-            <!-- Security -->
-            <div class="config-card">
-                <div class="config-card-header">
-                    <div class="config-icon">
-                        <i class="fas fa-shield-alt"></i>
-                    </div>
-                    <h5 class="config-title">Seguridad</h5>
-                </div>
-                <div class="config-content">
-                    <div class="config-item">
-                        <span class="config-item-label">Contraseñas seguras</span>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="securePasswords" checked>
-                        </div>
-                    </div>
-                    <div class="config-item">
-                        <span class="config-item-label">Doble autenticación</span>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="twoFactorAuth">
-                        </div>
-                    </div>
-                    <div class="config-item">
-                        <span class="config-item-label">Intentos de login permitidos</span>
-                        <span class="config-item-value">3</span>
-                    </div>
-                    <div class="config-item">
-                        <span class="config-item-label">Bloqueo temporal (minutos)</span>
-                        <span class="config-item-value">15</span>
-                    </div>
-                </div>
-                <div class="config-actions">
-                    <button class="btn btn-primary btn-sm">
-                        <i class="fas fa-save me-1"></i> Guardar
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- System Information -->
-        <div class="system-info">
-            <h5 class="mb-4"><i class="fas fa-info-circle me-2"></i>Información del Sistema</h5>
-            <div class="info-grid">
-                <div class="info-item">
-                    <div class="info-label">Sistema Operativo</div>
-                    <div class="info-value">Linux Ubuntu 20.04</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Servidor Web</div>
-                    <div class="info-value">Apache 2.4</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Versión de PHP</div>
-                    <div class="info-value">8.1.12</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Base de Datos</div>
-                    <div class="info-value">MySQL 8.0</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Espacio en disco</div>
-                    <div class="info-value">250 GB / 500 GB</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Memoria RAM</div>
-                    <div class="info-value">8 GB</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Última actualización</div>
-                    <div class="info-value">2023-10-15 08:30:45</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Estado del sistema</div>
-                    <div class="info-value"><span class="badge bg-success">Operativo</span></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Backup Section -->
-        <div class="backup-section">
-            <h5 class="mb-4"><i class="fas fa-database me-2"></i>Respaldo y Mantenimiento</h5>
-            <p class="text-muted">Realice copias de seguridad de su sistema regularmente para prevenir pérdida de información.</p>
+        <!-- User Configuration Section -->
+        <div class="config-section">
+            <h4 class="mb-4"><i class="fas fa-user me-2"></i>Configuración de Usuario</h4>
             
-            <div class="backup-options">
-                <button class="btn btn-primary">
-                    <i class="fas fa-download me-2"></i> Respaldar Base de Datos
-                </button>
-                <button class="btn btn-success">
-                    <i class="fas fa-file-archive me-2"></i> Respaldar Documentos
-                </button>
-                <button class="btn btn-warning">
-                    <i class="fas fa-history me-2"></i> Programar Respaldos
-                </button>
-                <button class="btn btn-info">
-                    <i class="fas fa-tasks me-2"></i> Optimizar Base de Datos
-                </button>
-            </div>
+            <div class="alert user-feedback" id="userFeedback"></div>
             
-            <div class="mt-4">
-                <h6>Últimos respaldos</h6>
-                <ul class="list-group">
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>backup_20231020.sql</span>
-                        <span class="badge bg-secondary">2023-10-20 23:45:00</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>backup_20231019.sql</span>
-                        <span class="badge bg-secondary">2023-10-19 23:45:00</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>backup_20231018.sql</span>
-                        <span class="badge bg-secondary">2023-10-18 23:45:00</span>
-                    </li>
-                </ul>
-            </div>
+            <form id="userDataForm" method="POST">
+                <input type="hidden" name="action" value="update_user">
+                <input type="hidden" name="user_id" value="<?php echo $usuario_actual['id']; ?>">
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="nombre" class="required-field">Nombre completo</label>
+                            <input type="text" class="form-control" id="nombre" name="nombre" 
+                                   value="<?php echo htmlspecialchars($usuario_actual['nombre']); ?>" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="usuario" class="required-field">Nombre de usuario</label>
+                            <input type="text" class="form-control" id="usuario" name="usuario" 
+                                   value="<?php echo htmlspecialchars($usuario_actual['usuario']); ?>" required>
+                            <small class="form-text text-muted">Este nombre será usado para iniciar sesión</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="email" class="required-field">Correo electrónico</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="<?php echo htmlspecialchars($usuario_actual['email']); ?>" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="area">Área asignada</label>
+                            <select class="form-control" id="area" name="area" disabled>
+                                <option value="<?php echo $usuario_actual['area_id']; ?>" selected>
+                                    <?php echo htmlspecialchars($usuario_actual['area_nombre']); ?>
+                                </option>
+                            </select>
+                            <small class="form-text text-muted">El área no puede ser modificada desde aquí</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i> Guardar cambios
+                </button>
+            </form>
         </div>
+
+        <!-- Password Change Section -->
+        <div class="config-section">
+            <h4 class="mb-4"><i class="fas fa-lock me-2"></i>Cambiar Contraseña</h4>
+            
+            <div class="alert password-feedback" id="passwordFeedback"></div>
+            
+            <form id="passwordForm" method="POST">
+                <input type="hidden" name="action" value="update_password">
+                <input type="hidden" name="user_id" value="<?php echo $usuario_actual['id']; ?>">
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="currentPassword" class="required-field">Contraseña actual</label>
+                            <input type="password" class="form-control" id="currentPassword" name="currentPassword" required>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="newPassword" class="required-field">Nueva contraseña</label>
+                            <input type="password" class="form-control" id="newPassword" name="newPassword" required>
+                            <small class="form-text text-muted">Mínimo 8 caracteres, incluir mayúsculas, minúsculas y números</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="confirmPassword" class="required-field">Confirmar nueva contraseña</label>
+                            <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" required>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-key me-1"></i> Cambiar contraseña
+                </button>
+            </form>
+        </div>
+
     </div>
 
     <!-- Scripts -->
@@ -261,25 +330,136 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
-        // Funcionalidad para los switches de configuración
-        document.addEventListener('DOMContentLoaded', function() {
-            // Simular guardado de configuración
-            const saveButtons = document.querySelectorAll('.config-actions .btn');
-            saveButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const cardTitle = this.closest('.config-card').querySelector('.config-title').textContent;
-                    alert(`Configuración de "${cardTitle}" guardada correctamente.`);
+        $(document).ready(function() {
+            // Validación del formulario de datos de usuario
+            $('#userDataForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = {
+                    nombre: $('#nombre').val(),
+                    usuario: $('#usuario').val(),
+                    email: $('#email').val()
+                };
+                
+                // Validaciones básicas de frontend
+                if (!formData.nombre || !formData.usuario || !formData.email) {
+                    showUserFeedback('Por favor, complete todos los campos obligatorios.', 'danger');
+                    return;
+                }
+                
+                if (!isValidEmail(formData.email)) {
+                    showUserFeedback('Por favor, ingrese un correo electrónico válido.', 'danger');
+                    return;
+                }
+                
+                // Enviar formulario mediante AJAX
+                $.ajax({
+                    url: 'configuser.php',
+                    type: 'POST',
+                    data: $(this).serialize(),
+                    success: function(response) {
+                        try {
+                            const result = JSON.parse(response);
+                            if (result.success) {
+                                showUserFeedback(result.message, 'success');
+                                // Actualizar información en la barra superior si el nombre cambió
+                                if (formData.nombre !== '<?php echo $usuario_actual['nombre']; ?>') {
+                                    location.reload(); // Recargar para ver cambios
+                                }
+                            } else {
+                                showUserFeedback(result.message, 'danger');
+                            }
+                        } catch (e) {
+                            showUserFeedback('Error al procesar la respuesta del servidor.', 'danger');
+                        }
+                    },
+                    error: function() {
+                        showUserFeedback('Error de conexión con el servidor.', 'danger');
+                    }
                 });
             });
             
-            // Funcionalidad para botones de respaldo
-            const backupButtons = document.querySelectorAll('.backup-options .btn');
-            backupButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const buttonText = this.textContent.trim();
-                    alert(`Proceso de ${buttonText} iniciado. Esto puede tomar algunos minutos.`);
+            // Validación del formulario de contraseña
+            $('#passwordForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                const currentPassword = $('#currentPassword').val();
+                const newPassword = $('#newPassword').val();
+                const confirmPassword = $('#confirmPassword').val();
+                
+                // Validaciones
+                if (!currentPassword || !newPassword || !confirmPassword) {
+                    showPasswordFeedback('Por favor, complete todos los campos.', 'danger');
+                    return;
+                }
+                
+                if (newPassword !== confirmPassword) {
+                    showPasswordFeedback('Las contraseñas nuevas no coinciden.', 'danger');
+                    return;
+                }
+                
+                if (!isPasswordStrong(newPassword)) {
+                    showPasswordFeedback('La nueva contraseña debe tener al menos 8 caracteres, incluir mayúsculas, minúsculas y números.', 'danger');
+                    return;
+                }
+                
+                // Enviar formulario mediante AJAX
+                $.ajax({
+                    url: 'configuser.php',
+                    type: 'POST',
+                    data: $(this).serialize(),
+                    success: function(response) {
+                        try {
+                            const result = JSON.parse(response);
+                            if (result.success) {
+                                showPasswordFeedback(result.message, 'success');
+                                $('#passwordForm')[0].reset();
+                            } else {
+                                showPasswordFeedback(result.message, 'danger');
+                            }
+                        } catch (e) {
+                            showPasswordFeedback('Error al procesar la respuesta del servidor.', 'danger');
+                        }
+                    },
+                    error: function() {
+                        showPasswordFeedback('Error de conexión con el servidor.', 'danger');
+                    }
                 });
             });
+            
+            // Funciones de utilidad
+            function isValidEmail(email) {
+                const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                return re.test(email);
+            }
+            
+            function isPasswordStrong(password) {
+                // Mínimo 8 caracteres, al menos una mayúscula, una minúscula y un número
+                const re = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+                return re.test(password);
+            }
+            
+            function showUserFeedback(message, type) {
+                const feedback = $('#userFeedback');
+                feedback.removeClass('alert-success alert-danger alert-warning');
+                feedback.addClass(`alert-${type}`);
+                feedback.html(message);
+                feedback.show();
+                
+                // Ocultar después de 5 segundos
+                setTimeout(() => feedback.hide(), 5000);
+            }
+            
+            function showPasswordFeedback(message, type) {
+                const feedback = $('#passwordFeedback');
+                feedback.removeClass('alert-success alert-danger alert-warning');
+                feedback.addClass(`alert-${type}`);
+                feedback.html(message);
+                feedback.show();
+                
+                // Ocultar después de 5 segundos
+                setTimeout(() => feedback.hide(), 5000);
+            }
         });
     </script>
 </body>

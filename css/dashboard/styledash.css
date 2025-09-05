@@ -247,6 +247,30 @@
             justify-content: flex-end;
             gap: 10px;
         }
+
+        .no-expedientes-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6c757d;
+        }
+
+        .no-expedientes-message i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            display: block;
+            color: #adb5bd;
+        }
+
+        .no-expedientes-message h4 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #495057;
+        }
+
+        .no-expedientes-message p {
+            font-size: 14px;
+            margin: 0;
+        }
         
         /****expedientes****/
 
