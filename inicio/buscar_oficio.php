@@ -6,7 +6,7 @@ header('Content-Type: application/json');
 $servername = "127.0.0.1";
 $username = "root"; // Cambia por tu usuario de MySQL
 $password = ""; // Cambia por tu contraseña de MySQL
-$dbname = "test";
+$dbname = "oficialiap";
 
 // Crear conexión
 $conn = new mysqli($servername, $username, $password, $dbname);

@@ -10,7 +10,7 @@ header("Expires: 0");
 $dbhost = "localhost";
 $dbuser = "root";
 $dbpass = "";
-$dbname = "test";
+$dbname = "oficialiap";
 
 $conn = mysqli_connect($dbhost, $dbuser, $dbpass, $dbname);
 if (!$conn) {
@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $asunto = mysqli_real_escape_string($conn, $_POST['asunto']);
     
     // Valores fijos como solicitaste
-    $area_id = 5; // Valor fijo para area_id
+    $area_id = 1; // Valor fijo para area_id
     $usuario_id = 1; // Valor fijo para usuario_id
     
     // Verificar si el área existe

@@ -11,7 +11,7 @@ if (!isset($_SESSION['usuario'])) {
 $dbhost = "localhost";
 $dbuser = "root";
 $dbpass = "";
-$dbname = "test";
+$dbname = "oficialiap";
 
 $conn = mysqli_connect($dbhost, $dbuser, $dbpass, $dbname);
 if (!$conn) {

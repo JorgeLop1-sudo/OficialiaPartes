@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dbhost = "localhost";
     $dbuser = "root";
     $dbpass = "";
-    $dbname = "test";
+    $dbname = "oficialiap";
 
     $conn = mysqli_connect($dbhost, $dbuser, $dbpass, $dbname);
     if (!$conn) {
@@ -47,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = mysqli_fetch_assoc($query);
             
             // Verificar contraseña
+            //if ($pass === $user['password']) {
             if (password_verify($pass, $user['password'])) {
                 // Almacenar información en sesión
                 $_SESSION['id'] = $user['id'];

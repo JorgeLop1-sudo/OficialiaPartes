@@ -16,7 +16,7 @@ if (!isset($_SESSION['usuario']) || $_SESSION['tipo_usuario'] !== 'user') {
 $dbhost = "localhost";
 $dbuser = "root";
 $dbpass = "";
-$dbname = "test";
+$dbname = "oficialiap";
 
 $conn = mysqli_connect($dbhost, $dbuser, $dbpass, $dbname);
 if (!$conn) {
