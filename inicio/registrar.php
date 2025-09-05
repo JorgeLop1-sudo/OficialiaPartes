@@ -6,12 +6,6 @@ header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");
 header("Expires: 0");
 
-// Verificar si el usuario está logueado
-if (!isset($_SESSION['usuario'])) {
-    header("Location: login.php");
-    exit();
-}
-
 // Conexión a la base de datos
 $dbhost = "localhost";
 $dbuser = "root";
