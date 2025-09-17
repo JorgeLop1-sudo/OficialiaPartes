@@ -5,15 +5,6 @@
             --light-color: #ecf0f1;
         }
         
-        /*body {
-            background: linear-gradient(135deg, #82adec 0%, #c3cfe2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }*/
-
         body {
             background: url('../images/fondo.jpg') no-repeat center center fixed;
             background-size: cover;
